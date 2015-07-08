@@ -20,5 +20,5 @@ func TestInitialize(t *testing.T) {
 	assert.Nil(t, err)
 	os.Setenv(reposEnvVar, fmt.Sprintf("%v,%v", os.TempDir(), "apples"))
 	err = Initialize()
-	assert.Nil(t, err)
+	assert.Error(t, err)
 }

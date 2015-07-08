@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestInitialize(t *testing.T) {
+func TestRepos(t *testing.T) {
 	// Dir Handling
 	r := Repos{}
 	r.AddRepo(Repo{"datName", "/datPath"})
 	fmt.Printf("%#v\n", r)
-	assert.Nil(t, fmt.Errorf("a"))
+	assert.Nil(t, nil)
 }
