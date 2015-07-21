@@ -10,6 +10,11 @@ import (
 )
 
 func main() {
+	app := makeApp()
+	app.RunAndExitOnError()
+}
+
+func makeApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "roper"
 	app.Usage = "A repo manager that doesn't suck"
@@ -35,7 +40,7 @@ func main() {
 			},
 		},
 	}
-	app.RunAndExitOnError()
+	return app
 }
 
 func startServer(c *cli.Context) {
