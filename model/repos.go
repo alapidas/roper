@@ -5,23 +5,23 @@ type Repos struct {
 }
 
 type Repo struct {
-	Name      string
-	LocalPath string
+	name      string
+	localPath string
 }
 
-/*
-Repos Methods
-*/
-
-func (repos *Repos) GetRepos() []Repo {
-	return repos.repos
+func NewRepos() *Repos {
+	return &Repos{repos: []Repo{}}
 }
 
-func (repos *Repos) AddRepo(repo Repo) error {
-	repos.repos = append(repos.repos, repo)
+func NewRepo(name string, localPath string) *Repo {
+	return &Repo{name: name, localPath: localPath}
+}
+
+func (repos *Repos) AddRepo(repo *Repo) error {
+	repos.repos = append(repos.repos, *repo)
 	return nil
 }
 
-func (repo Repo) DoThis() {
-	//
+func (repos *Repos) Repos() []Repo {
+	return repos.repos
 }

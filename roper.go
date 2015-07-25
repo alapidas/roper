@@ -2,11 +2,9 @@ package main
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
+	"github.com/alapidas/roper/controller"
 	"github.com/codegangsta/cli"
-	"github.com/codegangsta/negroni"
-	"github.com/gorilla/mux"
-	"net/http"
+	"os"
 )
 
 func main() {
@@ -36,27 +34,12 @@ func makeApp() *cli.App {
 				return nil
 			},
 			Action: func(c *cli.Context) {
-				startServer(c)
+				myServer := controller.NewServer()
+				if err := myServer.Start(c); err != nil {
+					os.Exit(1)
+				}
 			},
 		},
 	}
 	return app
-}
-
-func startServer(c *cli.Context) {
-	log.WithFields(log.Fields{
-		"locations": c.StringSlice("loc"),
-	}).Info("Starting server")
-	router := mux.NewRouter()
-	router.StrictSlash(true)
-	router.HandleFunc("/repos", reposHandler)
-	router.HandleFunc("/repos/{repoId}", reposHandler)
-	n := negroni.Classic()
-	n.UseHandler(router)
-	n.Run(":3001")
-}
-
-func reposHandler(res http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	res.Write([]byte(fmt.Sprintf("hai there repoId %v", vars["repoId"])))
 }
