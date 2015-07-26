@@ -5,6 +5,7 @@ this is the program you use to create yum repos), as well as CRUD functionality
 for repos and RPMs.
 
 TODO:
+- Create model representation for API
 - Scan and load up repos/RPMs into memory on startup (no database)
 - Write REST interface + JSON format
 - CRUD for RPMs/repos

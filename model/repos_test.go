@@ -8,6 +8,6 @@ import (
 func TestRepos(t *testing.T) {
 	// Dir Handling
 	r := Repos{}
-	r.AddRepo(NewRepo("datName", "/datPath"))
-	assert.Nil(t, nil)
+	err := r.AddRepo(&Repo{"datName", "/datPath"})
+	assert.Nil(t, err)
 }

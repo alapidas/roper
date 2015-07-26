@@ -18,7 +18,7 @@ type server struct {
 }
 
 func NewServer() *server {
-	return &server{repos: model.NewRepos()}
+	return &server{repos: &model.Repos{}}
 }
 
 // StartServer starts a server, and does all the things you might expect a
@@ -42,7 +42,8 @@ func (self *server) Start(c *cli.Context) error {
 	}).Info("Starting server")
 	n, err := initHandler()
 	if err != nil {
-		// TODO log something good
+		log.Errorf("Unable to initialize web server: %s\n", err)
+		return err
 	}
 	n.Run(":3001")
 	return nil
@@ -53,7 +54,8 @@ func (self *server) initRepos(locs []string) error {
 		if exists, err := pathExists(loc); err != nil || !exists {
 			return fmt.Errorf("Unable to locate directory %v", loc)
 		}
-		self.repos.AddRepo(model.NewRepo(loc, loc))
+		fmt.Printf("self.repos is %#v\n", self.repos)
+		self.repos.AddRepo(&model.Repo{Name: loc, LocalPath: loc})
 	}
 	return nil
 }

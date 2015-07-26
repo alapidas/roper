@@ -1,27 +1,17 @@
 package model
 
-type Repos struct {
-	repos []Repo
-}
+// use tags here for JSON unmarshaling
+// also maybe use the receiver object pattern from http://blog.golang.org/json-and-go
+// Explore just using a Repos type instead of a struct
+
+type Repos []*Repo
 
 type Repo struct {
-	name      string
-	localPath string
-}
-
-func NewRepos() *Repos {
-	return &Repos{repos: []Repo{}}
-}
-
-func NewRepo(name string, localPath string) *Repo {
-	return &Repo{name: name, localPath: localPath}
+	Name      string
+	LocalPath string
 }
 
 func (repos *Repos) AddRepo(repo *Repo) error {
-	repos.repos = append(repos.repos, *repo)
+	*repos = append(*repos, repo)
 	return nil
-}
-
-func (repos *Repos) Repos() []Repo {
-	return repos.repos
 }
