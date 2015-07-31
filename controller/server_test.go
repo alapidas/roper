@@ -29,6 +29,6 @@ func TestInitRepos(t *testing.T) {
 	defer os.RemoveAll(tempDir2)
 	err = myServer.initRepos([]string{tempDir, tempDir2})
 	assert.Nil(t, err)
-	assert.Len(t, *myServer.repos, 2)
+	assert.Equal(t, myServer.repos.RepoerSet.Cardinality(), 2)
 
 }
