@@ -13,3 +13,4 @@ TODO:
 - Write REST interface + JSON format
 - CRUD for RPMs/repos
 - /runCreateRepo endpoint
+- version the API

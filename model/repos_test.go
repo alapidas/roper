@@ -5,9 +5,14 @@ import (
 	"testing"
 )
 
-func TestRepos(t *testing.T) {
+//Repos
+func TestCreateRepos(t *testing.T) {
+	rs := NewRepos()
+	assert.NotNil(t, rs)
+}
+
+func TestCreateRepo(t *testing.T) {
 	// Dir Handling
-	r := Repos{}
-	err := r.AddRepo(&Repo{"datName", "/datPath"})
-	assert.Nil(t, err)
+	r := NewRepo("/myRoot", "myRepoName")
+	assert.NotNil(t, r)
 }
