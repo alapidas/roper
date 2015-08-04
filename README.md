@@ -1,6 +1,8 @@
 # Roper
 > A Repo Manager For The Rest Of Us
 
+[![Circle CI](https://circleci.com/gh/alapidas/roper.svg?style=svg)](https://circleci.com/gh/alapidas/roper)
+
 Roper ~~is~~ (will be) a database-less yum repo manager webservice with
 RESTful endpoints.  To goal of this is to provide the same functionality
 (and then some) that the `createrepo` primitive does (for the uninitiated,
