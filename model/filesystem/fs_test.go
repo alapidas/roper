@@ -29,7 +29,7 @@ func (suite *TheSuite) mkPTFS() *PassThroughFilesystem {
 }
 
 func (suite *TheSuite) mkTFS() *TransientFilesystem {
-	fs, _ := NewTransientFilesystem(suite.tmpdir)
+	fs, _ := NewTransientFilesystem(suite.tmpdir, false)
 	return fs
 }
 
@@ -88,6 +88,8 @@ func (suite *TheSuite) TestPassThroughFilesystemerCreate(c *C) {
 	fs, err = NewPassThroughFilesystem(newPath, true)
 	c.Assert(err, IsNil)
 	c.Assert(fs.rootPath, Equals, newPath)
+	fs, err = NewPassThroughFilesystem("asdasdb", true)
+	c.Assert(err, Equals, ErrPathNotAbsolute)
 }
 
 func (suite *TheSuite) TestPassThroughFilesystemer_realPath(c *C) {
@@ -178,6 +180,11 @@ func (suite *TheSuite) TestPassThroughFilesystemer_GetFile(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(fileBytes, DeepEquals, newFile.File())
 
+}
+
+func (suite *TheSuite) TestTransientFilesystem_Create(c *C) {
+	_, err := NewTransientFilesystem("asdasda", false)
+	c.Assert(err, Equals, ErrPathNotAbsolute)
 }
 
 func (suite *TheSuite) TestTransientFilesystem_Sync(c *C) {

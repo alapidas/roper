@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	ErrFileNoExist = errors.New("file does not exist")
-	ErrPathNoExist = errors.New("path does not exist")
-	ErrFileExists  = errors.New("file already exists")
+	ErrFileNoExist     = errors.New("file does not exist")
+	ErrPathNoExist     = errors.New("path does not exist")
+	ErrFileExists      = errors.New("file already exists")
+	ErrPathNotAbsolute = errors.New("path is not absolute")
 )
 
 // FSFiler knows everything that a normal os.FileInfo does, but it also
@@ -102,8 +103,23 @@ func (fs *TransientFilesystem) Sync() error {
 // NewTransientFilesystem returns a new TransientFilesystem.  Expects an
 // absolute path to the location on disk.  Returns an error if the path cannot
 // be created, or if a file already exists in that location.
-func NewTransientFilesystem(absPath string) (*TransientFilesystem, error) {
+// If create is true, then the directory will be created if it does not yet exist.
+func NewTransientFilesystem(absPath string, create bool) (*TransientFilesystem, error) {
+	if !filepath.IsAbs(absPath) {
+		return nil, ErrPathNotAbsolute
+	}
 	fi, err := os.Stat(absPath)
+	// short circuit for create
+	if create && os.IsNotExist(err) {
+		if err = os.MkdirAll(absPath, 0755); err != nil {
+			return nil, err
+		}
+		fs := &TransientFilesystem{trie: trie.NewTrie(), rootPath: absPath}
+		if err = fs.Sync(); err != nil {
+			return nil, err
+		}
+		return fs, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("Unable to stat path %s", absPath)
 	}
@@ -325,6 +341,9 @@ var _ Filesystemer = (*PassThroughFilesystem)(nil)
 // inexistence), or if the path is not a directory.  If create is true, then
 // the directory will be created if it does not yet exist.
 func NewPassThroughFilesystem(absPath string, create bool) (*PassThroughFilesystem, error) {
+	if !filepath.IsAbs(absPath) {
+		return nil, ErrPathNotAbsolute
+	}
 	fi, err := os.Stat(absPath)
 	// short circuit for create
 	if create && os.IsNotExist(err) {
