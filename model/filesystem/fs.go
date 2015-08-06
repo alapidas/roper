@@ -322,14 +322,22 @@ var _ Filesystemer = (*PassThroughFilesystem)(nil)
 
 // Create a new PassThroughFileSystem, given an absolute path to a directory.
 // Will fail if the given path is inaccessible for any reason (including its
-// inexistence), or if the path is not a directory.
-func NewPassThroughFilesystem(absPath string) (*PassThroughFilesystem, error) {
+// inexistence), or if the path is not a directory.  If create is true, then
+// the directory will be created if it does not yet exist.
+func NewPassThroughFilesystem(absPath string, create bool) (*PassThroughFilesystem, error) {
 	fi, err := os.Stat(absPath)
+	// short circuit for create
+	if create && os.IsNotExist(err) {
+		if err = os.MkdirAll(absPath, 0755); err != nil {
+			return nil, err
+		}
+		return &PassThroughFilesystem{rootPath: absPath}, nil
+	}
 	if err != nil {
-		return nil, fmt.Errorf("Unable to stat path %s", absPath)
+		return nil, err
 	}
 	if !fi.IsDir() {
-		return nil, fmt.Errorf("Specified path %s is not a directory", absPath)
+		return nil, ErrFileExists
 	}
 	return &PassThroughFilesystem{rootPath: absPath}, nil
 }

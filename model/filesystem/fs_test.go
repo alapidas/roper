@@ -24,7 +24,7 @@ func (suite *TheSuite) SetUpTest(c *C) {
 
 // helpers
 func (suite *TheSuite) mkPTFS() *PassThroughFilesystem {
-	fs, _ := NewPassThroughFilesystem(suite.tmpdir)
+	fs, _ := NewPassThroughFilesystem(suite.tmpdir, false)
 	return fs
 }
 
@@ -66,8 +66,8 @@ func (suite *TheSuite) TrieLog(c *C, fs *TransientFilesystem) {
 
 // tests
 func (suite *TheSuite) TestPassThroughFilesystemerBadPath(c *C) {
-	_, err := NewPassThroughFilesystem("/thispathbetternotexist")
-	c.Assert(err, ErrorMatches, "Unable to stat path.*")
+	_, err := NewPassThroughFilesystem("/thispathbetternotexist", false)
+	c.Assert(err, FitsTypeOf, &os.PathError{})
 }
 
 func (suite *TheSuite) TestPassThroughFilesystemerFileNotDir(c *C) {
@@ -75,13 +75,19 @@ func (suite *TheSuite) TestPassThroughFilesystemerFileNotDir(c *C) {
 	if err != nil {
 		c.Fatalf("Failed to make temp file in dir %s", suite.tmpdir)
 	}
-	_, err = NewPassThroughFilesystem(f.Name())
-	c.Assert(err, ErrorMatches, ".*path.*is not a directory")
+	_, err = NewPassThroughFilesystem(f.Name(), false)
+	c.Assert(err, Equals, ErrFileExists)
 }
 
 func (suite *TheSuite) TestPassThroughFilesystemerCreate(c *C) {
 	fs := suite.mkPTFS()
 	c.Assert(fs.rootPath, Equals, suite.tmpdir)
+	newPath := filepath.Join(suite.tmpdir, "under")
+	fs, err := NewPassThroughFilesystem(newPath, false)
+	c.Assert(err, NotNil)
+	fs, err = NewPassThroughFilesystem(newPath, true)
+	c.Assert(err, IsNil)
+	c.Assert(fs.rootPath, Equals, newPath)
 }
 
 func (suite *TheSuite) TestPassThroughFilesystemer_realPath(c *C) {
