@@ -37,6 +37,7 @@ type FSFile struct {
 
 var _ FSFiler = (*FSFile)(nil)
 
+// File returns the file stored in a FSFile
 func (fsfile *FSFile) File() []byte {
 	return fsfile.file
 }
@@ -99,16 +100,17 @@ func (fs *TransientFilesystem) Sync() error {
 }
 
 // NewTransientFilesystem returns a new TransientFilesystem.  Expects an
-// absolute path.
-func NewTransientFilesystem(path string) (*TransientFilesystem, error) {
-	fi, err := os.Stat(path)
+// absolute path to the location on disk.  Returns an error if the path cannot
+// be created, or if a file already exists in that location.
+func NewTransientFilesystem(absPath string) (*TransientFilesystem, error) {
+	fi, err := os.Stat(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to stat path %s", path)
+		return nil, fmt.Errorf("Unable to stat path %s", absPath)
 	}
 	if !fi.IsDir() {
-		return nil, fmt.Errorf("Specified path %s is not a directory", path)
+		return nil, fmt.Errorf("Specified path %s is not a directory", absPath)
 	}
-	fs := &TransientFilesystem{trie: trie.NewTrie(), rootPath: path}
+	fs := &TransientFilesystem{trie: trie.NewTrie(), rootPath: absPath}
 	if err = fs.Sync(); err != nil {
 		return nil, err
 	}
@@ -180,7 +182,7 @@ func (fs *TransientFilesystem) MkPath(path string) error {
 		fs.lock.Lock()
 		defer fs.lock.Unlock()
 		if success := fs.trie.Insert(trie.Prefix(absPath), fi); !success {
-			return fmt.Errorf("path %s already exists in memory")
+			return fmt.Errorf("path %s already exists in memory", path)
 		}
 		return nil
 	}
@@ -320,16 +322,16 @@ var _ Filesystemer = (*PassThroughFilesystem)(nil)
 
 // Create a new PassThroughFileSystem, given an absolute path to a directory.
 // Will fail if the given path is inaccessible for any reason (including its
-// inexistence), or is the path is not a directory.
-func NewPassThroughFilesystem(path string) (*PassThroughFilesystem, error) {
-	fi, err := os.Stat(path)
+// inexistence), or if the path is not a directory.
+func NewPassThroughFilesystem(absPath string) (*PassThroughFilesystem, error) {
+	fi, err := os.Stat(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to stat path %s", path)
+		return nil, fmt.Errorf("Unable to stat path %s", absPath)
 	}
 	if !fi.IsDir() {
-		return nil, fmt.Errorf("Specified path %s is not a directory", path)
+		return nil, fmt.Errorf("Specified path %s is not a directory", absPath)
 	}
-	return &PassThroughFilesystem{rootPath: path}, nil
+	return &PassThroughFilesystem{rootPath: absPath}, nil
 }
 
 // RootPath returns the real absolute path of the filesystem
