@@ -2,6 +2,26 @@
 The filesystem package provides a unified interface to a real backed filesystem.
 An example use case for this might be a server that wants to provide CRUD access
 to a filesystem.
+
+Here's an example of how you might use this package.
+The first step is to create a Filesystemer object based on the absolute
+filesystem path you want to represent (using a provided constructor):
+	fs := NewPassThroughFilesystem('/my/abs/path', false)
+At this point, all interaction with the Filesystemer should be relative to the
+root path.  For example, to check if /my/abs/path/lower/dir exists, you'd do
+something like:
+	fs.PathExists('lower/dir') // false
+If it did not exist, and you wanted to make a director there, you could do:
+	fs.MkPath('lower/dir')
+If you wanted to then make a file in this path, you might do:
+	fileBytes, err := ioutil.ReadFile('/tmp/roflcopter.jpeg')
+	fs.MkFile('lower/dir/roflcopter.jpeg', fileBytes)
+Then to retrieve the file, you'd do:
+	myFiler, err := fs.GetFile('lower/dir/roflcopter.jpeg')
+To remove the newly created file, this would work:
+	fs.RmPath('lower/dir/roflcopter.jpeg')
+	// Alternatively, recursively delete the whole directory
+	// fs.RmPath('lower')
 */
 package filesystem
 
@@ -300,7 +320,7 @@ func (fs *TransientFilesystem) MkFile(path string, content []byte) error {
 	return nil
 }
 
-// GetFile gets the file at path and returns a FSFile object, which both
+// GetFile gets the file at path and returns a FSFiler object, which both
 // describes the file and has a pointer to a copy of the file in a byte slice.
 // If the files does not exist or path is actually a directory, an error is returned.
 func (fs *TransientFilesystem) GetFile(path string) (FSFiler, error) {

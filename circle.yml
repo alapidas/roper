@@ -1,0 +1,9 @@
+dependencies:
+    override:
+        - go get -t -d -v ./...
+        - go get github.com/tools/godep
+        - godep restore
+        - godep go build -v
+test:
+    override:
+        - godep go test -v -race ./...

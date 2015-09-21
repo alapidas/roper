@@ -1,0 +1,18 @@
+{
+	"ImportPath": "github.com/alapidas/filesystem",
+	"GoVersion": "go1.4.2",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/tchap/go-patricia/patricia",
+			"Comment": "v2.2.0",
+			"Rev": "a560f85131e8aafc2cc4bcb1e265ae3fc6ee5f50"
+		},
+		{
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "871360013c92e1c715c2de6d06b54899468a8a2d"
+		}
+	]
+}
