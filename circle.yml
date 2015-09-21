@@ -2,8 +2,12 @@ dependencies:
     override:
         - go get -t -d -v ./...
         - go get github.com/tools/godep
+        - go get github.com/pierrre/gotestcover
+        - go get github.com/jstemmer/go-junit-report
         - godep restore
         - godep go build -v
 test:
     override:
-        - godep go test -v -race ./...
+        - godep go test -v -race ./... | tee >(go-junit-report > "$CIRCLE_TEST_REPORTS/test_report.xml")
+        - gotestcover -coverprofile=cover.out github.com/alapidas/roper/...
+        - go tool cover -html=cover.out -o="$CIRCLE_ARTIFACTS/cover.html"
