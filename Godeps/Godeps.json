@@ -9,7 +9,7 @@
 		},
 		{
 			"ImportPath": "github.com/alapidas/filesystem",
-			"Rev": "3fd9d5b9ebba50eae7543c79c6914fc6f3a290bf"
+			"Rev": "e9f6a3f4f41d8cda2e0542e3ecbf6e335bd5ab94"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",

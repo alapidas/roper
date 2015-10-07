@@ -178,7 +178,8 @@ func (suite *TheSuite) TestPassThroughFilesystemer_GetFile(c *C) {
 
 	newFile, err := fs.GetFile("myDir/theFile")
 	c.Assert(err, IsNil)
-	c.Assert(fileBytes, DeepEquals, newFile.File())
+	f, _ := newFile.File()
+	c.Assert(fileBytes, DeepEquals, f)
 
 }
 
@@ -282,6 +283,7 @@ func (suite *TheSuite) TestTransientFilesystemer_GetFile(c *C) {
 
 	newFile, err := fs.GetFile("myDir/theFile")
 	c.Assert(err, IsNil)
-	c.Assert(fileBytes, DeepEquals, newFile.File())
+	f, _ := newFile.File()
+	c.Assert(fileBytes, DeepEquals, f)
 
 }

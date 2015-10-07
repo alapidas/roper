@@ -46,21 +46,31 @@ var (
 // has access to the underlying file.
 type FSFiler interface {
 	os.FileInfo
-	File() []byte
+	File() ([]byte, error)
+	AbsPath() string
 }
 
 // A FSFile object contains all the information that you would normally find
 // in a os.FileInfo object, plus the file itself in a byte slice.
 type FSFile struct {
 	os.FileInfo
-	file []byte
+	absPath string
 }
 
 var _ FSFiler = (*FSFile)(nil)
 
 // File returns the file stored in a FSFile
-func (fsfile *FSFile) File() []byte {
-	return fsfile.file
+func (fsfile *FSFile) File() ([]byte, error) {
+	bytes, err := ioutil.ReadFile(fsfile.AbsPath())
+	if err != nil {
+		return nil, err
+	}
+	return bytes, err
+}
+
+// AbsPath returns the absolute path of the file on the filesystem
+func (fsfile *FSFile) AbsPath() string {
+	return fsfile.absPath
 }
 
 // Filesystemer is the base interface that any filesystem should implement.
@@ -194,7 +204,7 @@ func (fs *TransientFilesystem) MkPath(path string) error {
 			if fs.trie.Get(trie.Prefix(absPath)).(os.FileInfo).IsDir() {
 				return true, nil
 			} else {
-				return false, fmt.Errorf("Specified path %s exists in memory as a file, but does not exist on disk", path)
+				return false, fmt.Errorf("specified path %s exists in memory as a file, but does not exist on disk", path)
 			}
 		}
 		return false, nil
@@ -337,9 +347,8 @@ func (fs *TransientFilesystem) GetFile(path string) (FSFiler, error) {
 	if item == nil {
 		return nil, ErrPathNoExist
 	}
-	fileBytes, _ := ioutil.ReadFile(absPath)
 	fi, _ := os.Stat(realPath(fs, path))
-	return &FSFile{FileInfo: fi, file: fileBytes}, nil
+	return &FSFile{FileInfo: fi, absPath: absPath}, nil
 }
 
 // A passthrough file system doesn't have an internal representation of the
@@ -467,7 +476,7 @@ func (fs *PassThroughFilesystem) GetFile(path string) (FSFiler, error) {
 		}
 		return nil, fmt.Errorf("Specified path %s is a directory", realPath(fs, path))
 	}
-	fileBytes, _ := ioutil.ReadFile(realPath(fs, path))
-	fi, _ := os.Stat(realPath(fs, path))
-	return &FSFile{FileInfo: fi, file: fileBytes}, nil
+	absPath := realPath(fs, path)
+	fi, _ := os.Stat(absPath)
+	return &FSFile{FileInfo: fi, absPath: absPath}, nil
 }

@@ -1,9 +1,9 @@
 # filesystem
+[![Circle CI](https://circleci.com/gh/alapidas/filesystem.svg?style=svg)](https://circleci.com/gh/alapidas/filesystem)
+
 A simple filesystem interface in Go
 
 The filesystem package provides a unified interface to a real backed filesystem.  An example use case for this might be a server that wants to provide CRUD access to a filesystem.
-
-Be careful - The current implementation of this buffers entire files into memory.
 
 Here's an example of how you might use this package.
 
