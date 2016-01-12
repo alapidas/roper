@@ -69,6 +69,11 @@ func (suite *TheSuite) TestBasicPersist(c *C) {
 	err = json.Unmarshal(bytes, s)
 	c.Assert(err, IsNil)
 	c.Assert(*s, Equals, *value)
+
+	// Try an unmarshalable value
+	item := &PersistableBoltItem{"people", "99", map[int]string{}}
+	err = suite.persister.Persist(item)
+	c.Assert(err, ErrorMatches, "unable to persist item value.*")
 }
 
 func (suite *TheSuite) TestInitBuckets(c *C) {
@@ -106,4 +111,18 @@ func (suite *TheSuite) TestDelete(c *C) {
 	item := &PersistableBoltItem{bucket, "bmw", &s}
 	err = suite.persister.Persist(item)
 	c.Assert(suite.persister.Delete(bucket, "bmw"), IsNil)
+	c.Assert(suite.persister.Exists(bucket, "bmw"), Equals, false)
+}
+
+func (suite *TheSuite) TestCreatePersister(c *C) {
+	// Test the bad state here
+	_, err := CreateBoltPersister(suite.dbpath)
+	c.Assert(err, ErrorMatches, "unable to open database.*")
+}
+
+func (suite *TheSuite) TestCloseDB(c *C) {
+	err := suite.persister.CloseDB()
+	c.Assert(err, IsNil)
+	err = suite.persister.CloseDB()
+	c.Assert(err, IsNil)
 }
