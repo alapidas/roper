@@ -1,20 +1,19 @@
 machine:
     environment:
-        IMPORT_PATH: "github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME"
+        PROJECT_PATH: "$HOME/.go_workspace/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME"
 
 dependencies:
     override:
-        - mkdir -p $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME
-        - ln -fs $HOME/$CIRCLE_PROJECT_REPONAME $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
-        - echo 'export GOPATH=$GOPATH:$HOME/.go_project' >> ~/.circlerc
-        - go get -t -d -v ./...
-        - go get github.com/tools/godep
-        - go get github.com/pierrre/gotestcover
-        - go get github.com/jstemmer/go-junit-report
-        - godep restore
-        - godep go build -v
+        - mkdir -p $HOME/.go_workspace/src/github.com/$CIRCLE_PROJECT_USERNAME
+        - ln -fs $HOME/$CIRCLE_PROJECT_REPONAME $HOME/.go_workspace/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+        - cd $PROJECT_PATH && go get -t -d -v ./...
+        - cd $PROJECT_PATH && go get github.com/tools/godep
+        - cd $PROJECT_PATH && go get github.com/pierrre/gotestcover
+        - cd $PROJECT_PATH && go get github.com/jstemmer/go-junit-report
+        - cd $PROJECT_PATH && godep restore
+        - cd $PROJECT_PATH && godep go build -v
 test:
     override:
-        - godep go test -v -race ./... | tee >(go-junit-report > "$CIRCLE_TEST_REPORTS/test_report.xml")
-        - gotestcover -coverprofile=cover.out github.com/alapidas/roper/...
-        - go tool cover -html=cover.out -o="$CIRCLE_ARTIFACTS/cover.html"
+        - cd $PROJECT_PATH && godep go test -v -race ./... | tee >(go-junit-report > "$CIRCLE_TEST_REPORTS/test_report.xml")
+        - cd $PROJECT_PATH && gotestcover -coverprofile=cover.out ./...
+        - cd $PROJECT_PATH && go tool cover -html=cover.out -o="$CIRCLE_ARTIFACTS/cover.html"
