@@ -17,7 +17,11 @@ type TheSuite struct {
 
 var _ = Suite(&TheSuite{})
 
-// Create a temporary directory db to use
+type TestValue struct {
+	Value string
+}
+
+// Create a temporary directory + db + persister object to use
 func (suite *TheSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 	tempf, err := ioutil.TempFile(tmpdir, "")
@@ -47,20 +51,59 @@ func (suite *TheSuite) TestCreateBucket(c *C) {
 	// test creating it again
 	err = suite.persister.createBucket("mario")
 	c.Assert(err, IsNil)
+
 }
 
-func (suite *TheSuite) TestPersist(c *C) {
-	err := suite.mkBucket("people")
+func (suite *TheSuite) TestBasicPersist(c *C) {
+	err := suite.persister.createBucket("people")
 	c.Assert(err, IsNil)
-	mario, err := json.Marshal(struct{ Name string }{"mario mario"})
+	value := &TestValue{"mario mario"}
+	mario := &PersistableBoltItem{"people", "1", *value}
+	err = suite.persister.Persist(mario)
 	c.Assert(err, IsNil)
-	suite.persister.Persist("people", "1", mario)
 	c.Assert(suite.persister.Exists("people", "1"), Equals, true)
 	bytes, err := suite.persister.Get("people", "1")
 	c.Assert(err, IsNil)
-	s := struct{ Name string }{}
+	s := &TestValue{}
 	c.Log(bytes)
-	err = json.Unmarshal(bytes, &s)
+	err = json.Unmarshal(bytes, s)
 	c.Assert(err, IsNil)
-	c.Assert(s, Equals, struct{ Name string }{"mario mario"})
+	c.Assert(*s, Equals, *value)
+}
+
+func (suite *TheSuite) TestInitBuckets(c *C) {
+	buckets := []string{"apples", "bananas"}
+	err := suite.persister.InitBuckets(buckets)
+	c.Assert(err, IsNil)
+	// see if the buckets exist by deleting them
+	err = suite.persister.Update(func(tx *bolt.Tx) error {
+		for _, bucket := range buckets {
+			err := tx.DeleteBucket([]byte(bucket))
+			c.Assert(err, IsNil)
+		}
+		return nil
+	})
+	c.Assert(err, IsNil)
+}
+
+func (suite *TheSuite) TestExists(c *C) {
+	bucket := "cars"
+	err := suite.persister.InitBuckets([]string{bucket})
+	c.Assert(err, IsNil)
+	s := "135"
+	item := &PersistableBoltItem{bucket, "bmw", &s}
+	err = suite.persister.Persist(item)
+	c.Assert(err, IsNil)
+	c.Assert(suite.persister.Exists(bucket, "bmw"), Equals, true)
+	c.Assert(suite.persister.Exists(bucket, "bmwwwww"), Equals, false)
+}
+
+func (suite *TheSuite) TestDelete(c *C) {
+	bucket := "cars"
+	err := suite.persister.InitBuckets([]string{bucket})
+	c.Assert(err, IsNil)
+	s := "135"
+	item := &PersistableBoltItem{bucket, "bmw", &s}
+	err = suite.persister.Persist(item)
+	c.Assert(suite.persister.Delete(bucket, "bmw"), IsNil)
 }
