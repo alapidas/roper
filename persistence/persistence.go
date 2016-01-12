@@ -24,8 +24,8 @@ type IBoltPersister interface {
 	/* A persistence interface that's tightly coupled to Bolt for now.
 	Uses strings for keys, and marshalled JSON for values in all cases.
 	Marshalling and unmarshalling of values will _not_ be attempted here.
-	A database should be opened before any operations are attempted against it.
 	This API does not support nested buckets right now.
+	Databases need to be closed by the consumer.
 	*/
 
 	// Close a bolt database
