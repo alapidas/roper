@@ -10,14 +10,20 @@ type IPersistableItem interface{}
 
 type IPersistableBoltItem interface {
 	Bucket() string
-	Key() []byte
+	Key() string
 	Value() []byte
 }
 
 type PersistableBoltItem struct {
 	bucket string
-	key    interface{}
-	value  interface{}
+	key    string
+	value  interface{} // Should be a JSON-marshallable item
+}
+
+func (pbi *PersistableBoltItem) Bucket() string { return pbi.bucket }
+func (pbi *PersistableBoltItem) Key() string    { return pbi.key }
+func (pbi *PersistableBoltItem) Value() []byte {
+
 }
 
 // Make PersistableBoltItem methods, and make the BoltPersistence use it.
