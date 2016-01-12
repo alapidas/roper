@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/boltdb/bolt"
 	"time"
@@ -10,31 +11,44 @@ type IPersistableItem interface{}
 
 type IPersistableBoltItem interface {
 	Bucket() string
-	Key() []byte
-	Value() []byte
+	Key() string
+	Value() ([]byte, error)
 }
 
 type PersistableBoltItem struct {
 	bucket string
-	key    interface{}
-	value  interface{}
+	key    string
+	value  interface{} // Should be a JSON-marshallable item
 }
 
-// Make PersistableBoltItem methods, and make the BoltPersistence use it.
+var _ IPersistableBoltItem = (*PersistableBoltItem)(nil)
+
+func (pbi *PersistableBoltItem) Bucket() string { return pbi.bucket }
+func (pbi *PersistableBoltItem) Key() string    { return pbi.key } // TODO: Convert to string
+func (pbi *PersistableBoltItem) Value() ([]byte, error) {
+	bytes, err := json.Marshal(pbi.value)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal value: %s", err)
+	}
+	return bytes, nil
+}
 
 type IBoltPersister interface {
 	/* A persistence interface that's tightly coupled to Bolt for now.
-	Uses strings for keys, and marshalled JSON for values in all cases.
-	Marshalling and unmarshalling of values will _not_ be attempted here.
+	Marshalling and unmarshalling of values will _not_ be attempted in this level.
 	This API does not support nested buckets right now.
 	Databases need to be closed by the consumer.
+	Top level buckets need to explicitly be initialized via InitBuckets() before use
 	*/
 
 	// Close a bolt database
 	CloseDB() error
 
+	// Initialize buckets
+	InitBuckets(buckets []string) error
+
 	// Persist an item in a bucket
-	Persist(bucket, key string, value []byte) error
+	Persist(item IPersistableBoltItem) error
 
 	// Make sure a given key exists in a bucket
 	Exists(bucket, key string) bool
@@ -43,7 +57,7 @@ type IBoltPersister interface {
 	Get(bucket, key string) ([]byte, error)
 
 	// Delete a key in a bucket
-	// Delete(bucket, key string) error
+	Delete(bucket, key string) error
 }
 
 type BoltPersistence struct {
@@ -57,7 +71,23 @@ func CreateBoltPersister(databasePath string) (*BoltPersistence, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to open database: %s", err)
 	}
-	return &BoltPersistence{db}, nil
+	bp := &BoltPersistence{db}
+	return bp, nil
+}
+
+func (bp *BoltPersistence) InitBuckets(buckets []string) error {
+	err := bp.Update(func(tx *bolt.Tx) error {
+		for _, bucket := range buckets {
+			if _, err := tx.CreateBucketIfNotExists([]byte(bucket)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create bucket: %s", err)
+	}
+	return nil
 }
 
 func (bp *BoltPersistence) createBucket(bucket string) error {
@@ -80,19 +110,21 @@ func (bp *BoltPersistence) CloseDB() error {
 	return nil
 }
 
-func (bp *BoltPersistence) Persist(bucket, key string, value []byte) error {
-	if err := bp.createBucket(bucket); err != nil {
-		return err
+func (bp *BoltPersistence) Persist(item IPersistableBoltItem) error {
+	// First ensure we can get a value from the item
+	value, err := item.Value()
+	if err != nil {
+		return fmt.Errorf("unable to persist item value: %s", err)
 	}
-	err := bp.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(bucket))
-		if err := b.Put([]byte(key), value); err != nil {
+	err = bp.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(item.Bucket()))
+		if err := b.Put([]byte(item.Key()), value); err != nil {
 			return err
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("unaable to persist item: %s", err)
+		return fmt.Errorf("unable to persist item: %s", err)
 	}
 	return nil
 }
@@ -123,4 +155,18 @@ func (bp *BoltPersistence) Get(bucket, key string) ([]byte, error) {
 		return nil, fmt.Errorf("unable to get item: %s", err)
 	}
 	return dst, nil
+}
+
+func (bp *BoltPersistence) Delete(bucket, key string) error {
+	err := bp.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		if err := b.Delete([]byte(key)); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("unable to delete item as key %s: %s", key, err)
+	}
+	return nil
 }
