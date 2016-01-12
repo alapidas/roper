@@ -15,5 +15,5 @@ dependencies:
 test:
     override:
         - cd $PROJECT_PATH && godep go test -v -race ./... | tee >(go-junit-report > "$CIRCLE_TEST_REPORTS/test_report.xml")
-        - cd $PROJECT_PATH && gotestcover -coverprofile=cover.out ./...
+        - cd $PROJECT_PATH && gotestcover -coverprofile=cover.out github.com/alapidas/roper/...
         - cd $PROJECT_PATH && go tool cover -html=cover.out -o="$CIRCLE_ARTIFACTS/cover.html"
