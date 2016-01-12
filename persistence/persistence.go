@@ -20,6 +20,8 @@ type PersistableBoltItem struct {
 	value  interface{}
 }
 
+// Make PersistableBoltItem methods, and make the BoltPersistence use it.
+
 type IBoltPersister interface {
 	/* A persistence interface that's tightly coupled to Bolt for now.
 	Uses strings for keys, and marshalled JSON for values in all cases.
