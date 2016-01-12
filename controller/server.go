@@ -1,5 +1,6 @@
 package controller
 
+/*
 import (
 	"errors"
 	"fmt"
@@ -73,3 +74,4 @@ func (self *server) initOSDeps() error {
 	}).Info("createrepo executable found")
 	return nil
 }
+*/

@@ -1,4 +1,5 @@
 IMAGE_NAME := roper-build
+GO_PREFIX  := godep
 
 
 # Dockerized targets
@@ -16,14 +17,14 @@ docker_run: docker_image
 
 
 # Regular targets
-test: godep_restore
-	go test ./...
+test:
+	$(GO_PREFIX) go test ./...
 
 build:
-	go build roper.go
+	$(GO_PREFIX) go build roper.go
 
-run: godep_restore
-	go run roper.go server --loc /test_repos/epel
+run:
+	$(GO_PREFIX) go run roper.go server --loc /test_repos/epel
 
 # Godep targets
 godep_save:

@@ -1,33 +1,14 @@
 {
 	"ImportPath": "github.com/alapidas/roper",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.5",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.8.3-3-g07d998d",
-			"Rev": "07d998d174c4e2dc90e2f1989a20724220bca1ff"
-		},
-		{
-			"ImportPath": "github.com/alapidas/filesystem",
-			"Rev": "e9f6a3f4f41d8cda2e0542e3ecbf6e335bd5ab94"
-		},
-		{
-			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.2.0-135-gf998261",
-			"Rev": "f9982619ccace7df963bb7f6d1de3a6f014ff709"
-		},
-		{
-			"ImportPath": "github.com/codegangsta/negroni",
-			"Comment": "v0.1-70-gc7477ad",
-			"Rev": "c7477ad8e330bef55bf1ebe300cf8aa67c492d1b"
-		},
-		{
-			"ImportPath": "github.com/gorilla/context",
-			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
-		},
-		{
-			"ImportPath": "github.com/gorilla/mux",
-			"Rev": "47e8f450ef38c857cdd922ec08862ca9d65a1c6d"
+			"ImportPath": "github.com/boltdb/bolt",
+			"Comment": "v1.1.0-43-g25b2810",
+			"Rev": "25b28102db2053fa885b2a4798d5dfa94745f4b6"
 		},
 		{
 			"ImportPath": "github.com/stretchr/testify/assert",
@@ -35,9 +16,12 @@
 			"Rev": "089c7181b8c728499929ff09b62d3fdd8df8adff"
 		},
 		{
-			"ImportPath": "github.com/tchap/go-patricia/patricia",
-			"Comment": "v2.2.0",
-			"Rev": "a560f85131e8aafc2cc4bcb1e265ae3fc6ee5f50"
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "833a04a10549a95dc34458c195cbad61bbb6cb4d"
+		},
+		{
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "4f90aeace3a26ad7021961c297b22c42160c7b25"
 		}
 	]
 }

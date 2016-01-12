@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"fmt"
 	"github.com/alapidas/roper/controller"
@@ -43,3 +44,4 @@ func makeApp() *cli.App {
 	}
 	return app
 }
+*/
