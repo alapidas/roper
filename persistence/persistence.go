@@ -7,14 +7,13 @@ import (
 	"time"
 )
 
-type IPersistableItem interface{}
-
 type IPersistableBoltItem interface {
 	Bucket() string
 	Key() string
 	Value() ([]byte, error)
 }
 
+// This is a reference implementation
 type PersistableBoltItem struct {
 	bucket string
 	key    string
@@ -39,6 +38,8 @@ type IBoltPersister interface {
 	This API does not support nested buckets right now.
 	Databases need to be closed by the consumer.
 	Top level buckets need to explicitly be initialized via InitBuckets() before use
+
+	TODO: Expose `Update` to be able to use this API to make larger transactions
 	*/
 
 	// Close a bolt database

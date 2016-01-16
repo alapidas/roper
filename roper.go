@@ -1,21 +1,30 @@
 package main
 
-func main() {}
-
-/*
 import (
 	"fmt"
 	"github.com/alapidas/roper/controller"
-	"github.com/codegangsta/cli"
-	"os"
+	"github.com/alapidas/roper/persistence"
+	//"github.com/codegangsta/cli"
+	//"os"
 )
 
 func main() {
-	app := makeApp()
-	app.RunAndExitOnError()
+	db, err := persistence.CreateBoltPersister("/tmp/db")
+	if err != nil {
+		panic(fmt.Sprintf("fatal error opening database: %s", err))
+	}
+	defer db.CloseDB()
+	_, err = controller.NewRepoController(db)
+	if err != nil {
+		panic(fmt.Sprintf("fatal error creating controller: %s", err))
+	}
+	rdc := controller.NewRepoDiscoveryController(db)
+	rdc.Discover("Test Epel", "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel")
+	//app := makeApp()
+	//app.RunAndExitOnError()
 }
 
-func makeApp() *cli.App {
+/*func makeApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "roper"
 	app.Usage = "A repo manager that doesn't suck"
@@ -45,5 +54,4 @@ func makeApp() *cli.App {
 		},
 	}
 	return app
-}
-*/
+}*/
