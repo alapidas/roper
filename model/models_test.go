@@ -19,7 +19,10 @@ type TestValue struct {
 func (suite *TheSuite) SetUpTest(c *C) {}
 
 func (suite *TheSuite) TestPackage(c *C) {
-	_ = Package{RelPath: "a/b/c"}
+	p1 := Package{RelPath: "a/b/c"}
+	c.Assert(p1.IsRPM(), Equals, false)
+	p2 := Package{RelPath: "a/b/c.rpm"}
+	c.Assert(p2.IsRPM(), Equals, true)
 }
 
 func (suite *TheSuite) TestRepo(c *C) {

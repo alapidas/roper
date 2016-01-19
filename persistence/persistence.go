@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/boltdb/bolt"
@@ -59,6 +60,12 @@ type IBoltPersister interface {
 
 	// Delete a key in a bucket
 	Delete(bucket, key string) error
+
+	// Abstract out some cursor-like operations
+
+	// Get all rows with a key of a given prefix.  Returns slice of keys,
+	// and a slice of their corresponding values
+	Prefix(bucket, prefix string) ([]string, [][]byte, error)
 }
 
 type BoltPersistence struct {
@@ -170,4 +177,31 @@ func (bp *BoltPersistence) Delete(bucket, key string) error {
 		return fmt.Errorf("unable to delete item as key %s: %s", key, err)
 	}
 	return nil
+}
+
+func (bp *BoltPersistence) Prefix(bucket, prefix string) ([]string, [][]byte, error) {
+	var keys []string
+	var values [][]byte
+	err := bp.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket([]byte(bucket)).Cursor()
+		bprefix := []byte(prefix)
+		var ikeys []string
+		var ivalues [][]byte
+		for k, v := c.Seek(bprefix); bytes.HasPrefix(k, bprefix); k, v = c.Next() {
+			// keys are always strings, so unmarshal here
+			var key string
+			if err := json.Unmarshal(k, key); err != nil {
+				return err
+			}
+			ikeys = append(ikeys, key)
+			ivalues = append(ivalues, v)
+			copy(keys, ikeys)
+			copy(values, ivalues)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to get items with prefix %s: %s", prefix, err)
+	}
+	return keys, values, nil
 }

@@ -5,19 +5,22 @@ import (
 	"fmt"
 	"github.com/alapidas/roper/model"
 	"github.com/alapidas/roper/persistence"
+	//"gopkg.in/fsnotify.v1"
 	"os"
 	"path/filepath"
 )
 
 var (
-	buckets = []string{"repos"}
+	repo_bucket = "repos"
+	pkg_bucket  = "packages"
+	buckets     = []string{repo_bucket, pkg_bucket}
 )
 
 /* Singleton controllers */
 
 type IRepoController interface {
-	DB() persistence.IBoltPersister // TODO: Make this generic + swappable
-	GetPackageByRelPath(repoID, pkgPath string) (model.IPackage, error)
+	GetPackageByRelPath(repoName, pkgPath string) (model.IPackage, error)
+	GetRepo(repoName string) (*model.Repo, error)
 }
 
 type RepoController struct {
@@ -36,6 +39,17 @@ type RepoDiscoveryController struct {
 
 var _ IRepoDiscoveryController = (*RepoDiscoveryController)(nil)
 
+// persistRepo will persist a Repo to a IBoltPersister.  This will persist the
+// repo and all the packages.  It is destructive, and will clear out any existing
+// packages, overwriting them.
+func persistRepo(db persistence.IBoltPersister, repo *model.Repo) error {
+	keys, vals, err := db.Prefix(repo.Name + "::")
+	if err != nil {
+		return fmt.Errorf("unable to persist repo: %s", err)
+	}
+
+}
+
 func NewRepoController(p persistence.IBoltPersister) (*RepoController, error) {
 	rc := &RepoController{db: p}
 	if err := rc.db.InitBuckets(buckets); err != nil {
@@ -44,20 +58,45 @@ func NewRepoController(p persistence.IBoltPersister) (*RepoController, error) {
 	return rc, nil
 }
 
-func (rc *RepoController) DB() persistence.IBoltPersister {
-	return rc.db
+func (rc *RepoController) GetRepo(repoName string) (*model.Repo, error) {
+	// get repo from db
+	repo_bytes, err := rc.db.Get(repo_bucket, repoName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get repo %s: %s", repoName, err)
+	}
+	var repo *model.Repo
+	if err = json.Unmarshal(repo_bytes, repo); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal repo %s: %s", repoName, err)
+	}
+	// get packages
+	keys, pbytes, err := rc.db.Prefix(repo_bucket, repoName+"::")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get packages: %s", err)
+	}
+	pkgMap := make(map[string]*model.Package)
+	for idx, bpkg := range pbytes {
+		var pkg *model.Package
+		if err = json.Unmarshal(bpkg, pkg); err != nil {
+			return nil, fmt.Errorf("unable to unmarshal package: %s", err)
+		}
+		pkgMap[keys[idx]] = pkg
+	}
+	repo.Packages = pkgMap
+	return repo, nil
 }
 
-func (rc *RepoController) GetPackageByRelPath(repoID, pkgPath string) (model.IPackage, error) {
+func (rc *RepoController) GetPackageByRelPath(repoName, pkgPath string) (model.IPackage, error) {
+	// FIXME
+
 	// get the repo from DB
-	repoBytes, err := rc.db.Get("repos", repoID)
+	repoBytes, err := rc.db.Get("repos", repoName)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get repo with ID %s: %s", repoID, err)
+		return nil, fmt.Errorf("unable to get repo with ID %s: %s", repoName, err)
 	}
 	// unmarshal repo
 	repo := model.Repo{}
 	if err = json.Unmarshal(repoBytes, repo); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal repo with ID %s: %s", repoID, err)
+		return nil, fmt.Errorf("unable to unmarshal repo with ID %s: %s", repoName, err)
 	}
 	// get package
 	for path, pkg := range repo.Packages {
@@ -65,7 +104,7 @@ func (rc *RepoController) GetPackageByRelPath(repoID, pkgPath string) (model.IPa
 			return pkg, nil
 		}
 	}
-	return nil, fmt.Errorf("unable to find package %s in repo %s", pkgPath, repoID)
+	return nil, fmt.Errorf("unable to find package %s in repo %s", pkgPath, repoName)
 }
 
 func NewRepoDiscoveryController(p persistence.IBoltPersister) *RepoDiscoveryController {
@@ -74,6 +113,8 @@ func NewRepoDiscoveryController(p persistence.IBoltPersister) *RepoDiscoveryCont
 
 // Discover will create a repo at a path, and walk it, adding packages that it finds.
 func (rdc *RepoDiscoveryController) Discover(name, path string) error {
+	// FIXME
+
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		return fmt.Errorf("unable to discover repo at path %s: %s", path, err)
@@ -97,9 +138,12 @@ func (rdc *RepoDiscoveryController) Discover(name, path string) error {
 		repo.AddPackage(&pkg)
 		return nil
 	})
+	// TODO: Handle persisting the packages separately
 	pr := &model.PersistableRepo{Repo: *repo}
 	if err = rdc.db.Persist(pr); err != nil {
 		return fmt.Errorf("error persisting repo %s: %s", path, err)
 	}
 	return nil
 }
+
+// Write something to Persist a Repo + Packages

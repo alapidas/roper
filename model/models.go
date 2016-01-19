@@ -3,14 +3,13 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 )
 
-// An abstract place where repositories come from
-type IRepoRepository interface {
-	Store(repo IRepo) error
-	Get(key string) IRepo
-	Identifier() string // used for bucket name for now
-}
+var (
+	repo_bucket = "repos"
+	pkg_bucket  = "packages"
+)
 
 type IRepo interface {
 	AddPackage(pkg *Package) error
@@ -37,20 +36,27 @@ type PersistableRepo struct {
 var _ IRepo = (*Repo)(nil)
 var _ IPersistableRepo = (*PersistableRepo)(nil)
 
-// An abstract place where packages come from
-type IPackageRepository interface {
-	Store(pkg IPackage) error
-	Get(key string) IPackage
-	Identifier() string // used for bucket name for now
+type IPackage interface {
+	IsRPM() bool
 }
-
-type IPackage interface{}
 
 type Package struct {
 	RelPath string // key
+	Repo    *Repo
+}
+
+type IPersistablePackage interface {
+	Bucket() string
+	Key() string
+	Value() ([]byte, error)
+}
+
+type PersistablePackage struct {
+	Package
 }
 
 var _ IPackage = (*Package)(nil)
+var _ IPersistablePackage = (*PersistablePackage)(nil)
 
 func (repo *Repo) AddPackage(pkg *Package) error {
 	// Overwrites an existing package at the same path
@@ -79,10 +85,26 @@ func (repo *Repo) GetPackage(relPath string) (*Package, error) {
 	return repo.Packages[relPath], nil
 }
 
-func (pr *PersistableRepo) Bucket() string { return "repos" }
-func (pr *PersistableRepo) Key() string    { return pr.AbsPath }
+func (pkg *Package) IsRPM() bool {
+	return filepath.Ext(pkg.RelPath) == ".rpm"
+}
+
+func (pr *PersistableRepo) Bucket() string { return repo_bucket }
+func (pr *PersistableRepo) Key() string    { return pr.Name }
 func (pr *PersistableRepo) Value() ([]byte, error) {
-	bytes, err := json.Marshal(pr)
+	bytes, err := json.Marshal(pr.AbsPath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal value: %s", err)
+	}
+	return bytes, nil
+}
+
+func (pp *PersistablePackage) Bucket() string { return pkg_bucket }
+func (pp *PersistablePackage) Key() string {
+	return fmt.Sprintf("%s::%s", pp.Repo.Name, pp.RelPath)
+}
+func (pp *PersistablePackage) Value() ([]byte, error) {
+	bytes, err := json.Marshal(pp)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal value: %s", err)
 	}
