@@ -3,54 +3,25 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 )
-
-// An abstract place where repositories come from
-type IRepoRepository interface {
-	Store(repo IRepo) error
-	Get(key string) IRepo
-	Identifier() string // used for bucket name for now
-}
-
-type IRepo interface {
-	AddPackage(pkg *Package) error
-	RmPackage(path string) error
-	GetPackage(relPath string) (*Package, error)
-}
 
 type Repo struct {
 	Name     string
 	AbsPath  string              // key
 	Packages map[string]*Package // relative paths of packages
 }
-
-type IPersistableRepo interface {
-	Bucket() string
-	Key() string
-	Value() ([]byte, error)
-}
-
 type PersistableRepo struct {
 	Repo
 }
 
-var _ IRepo = (*Repo)(nil)
-var _ IPersistableRepo = (*PersistableRepo)(nil)
-
-// An abstract place where packages come from
-type IPackageRepository interface {
-	Store(pkg IPackage) error
-	Get(key string) IPackage
-	Identifier() string // used for bucket name for now
-}
-
-type IPackage interface{}
-
 type Package struct {
-	RelPath string // key
+	RelPath  string // key
+	RepoName string
 }
-
-var _ IPackage = (*Package)(nil)
+type PersistablePackage struct {
+	Package
+}
 
 func (repo *Repo) AddPackage(pkg *Package) error {
 	// Overwrites an existing package at the same path
@@ -60,6 +31,15 @@ func (repo *Repo) AddPackage(pkg *Package) error {
 		return fmt.Errorf("unable to add package with empty path to repo %s", repo.Name)
 	}
 	repo.Packages[pkg.RelPath] = pkg
+	return nil
+}
+
+func (repo *Repo) SetPackages(pkgs []*Package) error {
+	pkgMap := make(map[string]*Package)
+	for _, pkg := range pkgs {
+		pkgMap[pkg.RelPath] = pkg
+	}
+	repo.Packages = pkgMap
 	return nil
 }
 
@@ -79,12 +59,31 @@ func (repo *Repo) GetPackage(relPath string) (*Package, error) {
 	return repo.Packages[relPath], nil
 }
 
-func (pr *PersistableRepo) Bucket() string { return "repos" }
-func (pr *PersistableRepo) Key() string    { return pr.AbsPath }
-func (pr *PersistableRepo) Value() ([]byte, error) {
-	bytes, err := json.Marshal(pr)
+func (pkg *Package) IsRPM() bool {
+	return filepath.Ext(pkg.RelPath) == ".rpm"
+}
+
+func (pr *PersistableRepo) Serial() ([]byte, []byte, error) {
+	kbytes := []byte(pr.Name)
+	// copy the repo and clear out packages, then persist it
+	pr2 := *pr
+	pr2.Packages = nil
+	vbytes, err := json.Marshal(pr2)
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal value: %s", err)
+		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)
 	}
-	return bytes, nil
+	return kbytes, vbytes, nil
+}
+
+func (pp *PersistablePackage) Serial() ([]byte, []byte, error) {
+	key := fmt.Sprintf("%s::%s", pp.RepoName, pp.RelPath)
+	kbytes, err := json.Marshal(key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)
+	}
+	vbytes, err := json.Marshal(pp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)
+	}
+	return kbytes, vbytes, nil
 }
