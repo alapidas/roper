@@ -48,10 +48,9 @@ func (suite *TheSuite) TestBasicPersistAndGetRepo(c *C) {
 	err = suite.rc.PersistRepo(repo)
 	c.Assert(err, IsNil)
 	pr := &model.PersistableRepo{*repo}
-	k,v,err := pr.Serial()
+	k, v, err := pr.Serial()
 	c.Log("%#v", k)
 	c.Log("%#v", v)
-
 
 	// now get the repo
 	repo = nil

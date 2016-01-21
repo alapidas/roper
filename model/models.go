@@ -34,6 +34,15 @@ func (repo *Repo) AddPackage(pkg *Package) error {
 	return nil
 }
 
+func (repo *Repo) SetPackages(pkgs []*Package) error {
+	pkgMap := make(map[string]*Package)
+	for _, pkg := range pkgs {
+		pkgMap[pkg.RelPath] = pkg
+	}
+	repo.Packages = pkgMap
+	return nil
+}
+
 func (repo *Repo) RmPackage(path string) error {
 	if _, ok := repo.Packages[path]; !ok {
 		return fmt.Errorf("cannot remove nonexistent package at path %s from repo %s", path, repo.Name)

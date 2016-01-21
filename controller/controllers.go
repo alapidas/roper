@@ -44,6 +44,9 @@ func Init(dbPath string) (*RoperController, error) {
 			if _, err := tx.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
 				return fmt.Errorf("unable to create bucket %s: %s", bucketName, err)
 			}
+			log.WithFields(log.Fields{
+				"bucket": bucketName,
+			}).Infof("created bucket (may have already existed)")
 		}
 		return nil
 	})
@@ -114,29 +117,13 @@ func (rc *RepoController) GetPackages(repoName string) ([]*model.Package, error)
 
 func (rc *RoperController) GetRepo(repoName string) (*model.Repo, error) {
 	// get repo from db
-	var repo *model.Repo
+	repo := &model.Repo{}
 	err := rc.db.View(func(tx *bolt.Tx) error {
-		pb := tx.Bucket([]byte(pkg_bucket))
-		rb := tx.Bucket([]byte(repo_bucket))
-		repo_bytes := rb.Get([]byte(repoName))
-		if repo_bytes == nil {
-			return fmt.Errorf("repo with name %s not found in database", repoName)
+		var err error
+		repo, err = rc.getRepo(tx, repoName)
+		if err != nil {
+			return fmt.Errorf("unable to get repo %s: %s", repoName, err)
 		}
-		if err := json.Unmarshal(repo_bytes, repo); err != nil {
-			return fmt.Errorf("error unmarshaling repo %s: %s", repoName, err)
-		}
-		// get packages
-		prefix := []byte(repo.Name + "::")
-		c := pb.Cursor()
-		pkgs := make(map[string]*model.Package)
-		for k, v := c.Seek(prefix); bytes.HasPrefix(k, prefix); k, v = c.Next() {
-			var pkg *model.Package
-			if err := json.Unmarshal(v, pkg); err != nil {
-				return fmt.Errorf("unable to unmarshal package: %s", err)
-			}
-			pkgs[pkg.RelPath] = pkg
-		}
-		repo.Packages = pkgs
 		return nil
 	})
 	if err != nil {
@@ -207,6 +194,63 @@ func (rc *RoperController) Discover(name, path string) error {
 		"path": path,
 	}).Info("Successfully discovered repo")
 	return nil
+}
+
+// getRepo is an internal API method that gets a repo, given a transaction
+func (rc *RoperController) getRepo(tx *bolt.Tx, repoName string) (*model.Repo, error) {
+	repo := &model.Repo{}
+	rb := tx.Bucket([]byte(repo_bucket))
+	repo_bytes := rb.Get([]byte(repoName))
+	if repo_bytes == nil {
+		return nil, fmt.Errorf("repo with name %s not found in database", repoName)
+	}
+	if err := json.Unmarshal(repo_bytes, repo); err != nil {
+		return nil, fmt.Errorf("error unmarshaling repo %s: %s", repoName, err)
+	}
+	// get packages
+	pkgs, err := rc.getPackagesForRepo(tx, repoName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get packages for repo %s: %s", repoName, err)
+	}
+	repo.SetPackages(pkgs)
+	return repo, nil
+}
+
+// getPackagesForRepo is an internal API method used for getting packages inside of another xn
+func (rc *RoperController) getPackagesForRepo(tx *bolt.Tx, repoName string) ([]*model.Package, error) {
+	pb := tx.Bucket([]byte(pkg_bucket))
+	prefix := []byte(repoName + "::")
+	c := pb.Cursor()
+	pkgs := []*model.Package{}
+	for k, v := c.Seek(prefix); bytes.HasPrefix(k, prefix); k, v = c.Next() {
+		var pkg *model.Package
+		if err := json.Unmarshal(v, pkg); err != nil {
+			return nil, fmt.Errorf("unable to unmarshal package: %s", err)
+		}
+		pkgs = append(pkgs, pkg)
+	}
+	return pkgs, nil
+}
+
+// GetRepos returns all the Repos that it can find in the database
+func (rc *RoperController) GetRepos() ([]*model.Repo, error) {
+	repos := []*model.Repo{}
+	err := rc.db.View(func(tx *bolt.Tx) error {
+		rb := tx.Bucket([]byte(repo_bucket))
+		err := rb.ForEach(func(k, v []byte) error {
+			repo, err := rc.getRepo(tx, string(k[:]))
+			if err != nil {
+				return fmt.Errorf("unable to get repo %s: %s", string(k[:]), err)
+			}
+			repos = append(repos, repo)
+			return nil
+		})
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unable to get repos: %s", err)
+	}
+	return repos, nil
 }
 
 // Write something to Persist a Repo + Packages

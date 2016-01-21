@@ -5,16 +5,19 @@ import (
 	"github.com/alapidas/roper/controller"
 	//"github.com/codegangsta/cli"
 	//"os"
+	"github.com/alapidas/roper/interfaces"
 )
 
 func main() {
 	log.Infof("Starting Server")
+
 	// create controller
 	rc, err := controller.Init("/Users/alapidas/Downloads/roper.db")
 	if err != nil {
 		log.Fatalf("Unable to initialize application: %s", err)
 	}
 	defer rc.Close()
+
 	// Discover
 	name := "Test Epel"
 	path := "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
@@ -24,6 +27,20 @@ func main() {
 			path: path,
 		}).Fatal("Unable to discover repo - exiting")
 	}
+
+	// start web server
+	dirConfigs := []interfaces.DirConfig{}
+	repos, err := rc.GetRepos()
+	if err != nil {
+		log.Fatalf("Unable to get all repos to start web server: %s", err)
+	}
+	for _, repo := range repos {
+		dirConfigs = append(dirConfigs, interfaces.DirConfig{
+			TopLevel: repo.Name,
+			AbsPath: repo.AbsPath,
+		})
+	}
+	interfaces.StartWeb(dirConfigs)
 	//app := makeApp()
 	//app.RunAndExitOnError()
 }
