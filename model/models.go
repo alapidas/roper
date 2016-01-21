@@ -6,57 +6,22 @@ import (
 	"path/filepath"
 )
 
-var (
-	repo_bucket = "repos"
-	pkg_bucket  = "packages"
-)
-
-type IRepo interface {
-	AddPackage(pkg *Package) error
-	RmPackage(path string) error
-	GetPackage(relPath string) (*Package, error)
-}
-
 type Repo struct {
 	Name     string
 	AbsPath  string              // key
 	Packages map[string]*Package // relative paths of packages
 }
-
-type IPersistableRepo interface {
-	Bucket() string
-	Key() string
-	Value() ([]byte, error)
-}
-
 type PersistableRepo struct {
 	Repo
 }
 
-var _ IRepo = (*Repo)(nil)
-var _ IPersistableRepo = (*PersistableRepo)(nil)
-
-type IPackage interface {
-	IsRPM() bool
-}
-
 type Package struct {
-	RelPath string // key
-	Repo    *Repo
+	RelPath  string // key
+	RepoName string
 }
-
-type IPersistablePackage interface {
-	Bucket() string
-	Key() string
-	Value() ([]byte, error)
-}
-
 type PersistablePackage struct {
 	Package
 }
-
-var _ IPackage = (*Package)(nil)
-var _ IPersistablePackage = (*PersistablePackage)(nil)
 
 func (repo *Repo) AddPackage(pkg *Package) error {
 	// Overwrites an existing package at the same path
@@ -89,24 +54,27 @@ func (pkg *Package) IsRPM() bool {
 	return filepath.Ext(pkg.RelPath) == ".rpm"
 }
 
-func (pr *PersistableRepo) Bucket() string { return repo_bucket }
-func (pr *PersistableRepo) Key() string    { return pr.Name }
-func (pr *PersistableRepo) Value() ([]byte, error) {
-	bytes, err := json.Marshal(pr.AbsPath)
+func (pr *PersistableRepo) Serial() ([]byte, []byte, error) {
+	kbytes := []byte(pr.Name)
+	// copy the repo and clear out packages, then persist it
+	pr2 := *pr
+	pr2.Packages = nil
+	vbytes, err := json.Marshal(pr2)
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal value: %s", err)
+		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)
 	}
-	return bytes, nil
+	return kbytes, vbytes, nil
 }
 
-func (pp *PersistablePackage) Bucket() string { return pkg_bucket }
-func (pp *PersistablePackage) Key() string {
-	return fmt.Sprintf("%s::%s", pp.Repo.Name, pp.RelPath)
-}
-func (pp *PersistablePackage) Value() ([]byte, error) {
-	bytes, err := json.Marshal(pp)
+func (pp *PersistablePackage) Serial() ([]byte, []byte, error) {
+	key := fmt.Sprintf("%s::%s", pp.RepoName, pp.RelPath)
+	kbytes, err := json.Marshal(key)
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal value: %s", err)
+		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)
 	}
-	return bytes, nil
+	vbytes, err := json.Marshal(pp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)
+	}
+	return kbytes, vbytes, nil
 }

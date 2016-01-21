@@ -1,25 +1,29 @@
 package main
 
 import (
-	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/alapidas/roper/controller"
-	"github.com/alapidas/roper/persistence"
 	//"github.com/codegangsta/cli"
 	//"os"
 )
 
 func main() {
-	db, err := persistence.CreateBoltPersister("/tmp/db")
+	log.Infof("Starting Server")
+	// create controller
+	rc, err := controller.Init("/Users/alapidas/Downloads/roper.db")
 	if err != nil {
-		panic(fmt.Sprintf("fatal error opening database: %s", err))
+		log.Fatalf("Unable to initialize application: %s", err)
 	}
-	defer db.CloseDB()
-	_, err = controller.NewRepoController(db)
-	if err != nil {
-		panic(fmt.Sprintf("fatal error creating controller: %s", err))
+	defer rc.Close()
+	// Discover
+	name := "Test Epel"
+	path := "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
+	if err = rc.Discover(name, path); err != nil {
+		log.WithFields(log.Fields{
+			name: name,
+			path: path,
+		}).Fatal("Unable to discover repo - exiting")
 	}
-	rdc := controller.NewRepoDiscoveryController(db)
-	rdc.Discover("Test Epel", "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel")
 	//app := makeApp()
 	//app.RunAndExitOnError()
 }
