@@ -4,11 +4,18 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/alapidas/roper/controller"
 	//"github.com/codegangsta/cli"
-	//"os"
 	"github.com/alapidas/roper/interfaces"
+	"os"
+	"os/signal"
+	"sync"
 )
 
 func main() {
+	var wg sync.WaitGroup
+	shutdownChan := make(chan struct{})
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+
 	log.Infof("Starting Server")
 
 	// create controller
@@ -37,10 +44,22 @@ func main() {
 	for _, repo := range repos {
 		dirConfigs = append(dirConfigs, interfaces.DirConfig{
 			TopLevel: repo.Name,
-			AbsPath: repo.AbsPath,
+			AbsPath:  repo.AbsPath,
 		})
 	}
-	interfaces.StartWeb(dirConfigs)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		interfaces.StartWeb(dirConfigs, shutdownChan)
+	}()
+
+	// Wait for shutdown signal
+	select {
+	case <-signalChan:
+		log.Warn("Received shutdown signal in main")
+		close(shutdownChan)
+	}
+	wg.Wait()
 	//app := makeApp()
 	//app.RunAndExitOnError()
 }
