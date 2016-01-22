@@ -77,10 +77,7 @@ func (pr *PersistableRepo) Serial() ([]byte, []byte, error) {
 
 func (pp *PersistablePackage) Serial() ([]byte, []byte, error) {
 	key := fmt.Sprintf("%s::%s", pp.RepoName, pp.RelPath)
-	kbytes, err := json.Marshal(key)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)
-	}
+	kbytes := []byte(key)
 	vbytes, err := json.Marshal(pp)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to marshal value: %s", err)

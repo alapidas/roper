@@ -30,6 +30,11 @@
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "4f90aeace3a26ad7021961c297b22c42160c7b25"
+		},
+		{
+			"ImportPath": "gopkg.in/fsnotify.v1",
+			"Comment": "v1.2.9",
+			"Rev": "8611c35ab31c1c28aa903d33cf8b6e44a399b09e"
 		}
 	]
 }

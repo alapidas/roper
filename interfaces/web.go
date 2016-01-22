@@ -26,13 +26,16 @@ func StartWeb(dirs []DirConfig, shutdownChan chan struct{}) error {
 		)
 	}
 	http.Handle("/", r)
+
 	log.WithFields(log.Fields{
 		"prefixes": prefixes,
 	}).Infof("Starting web server for repos at prefixes")
+
 	webDoneChan := make(chan error)
 	go func() {
 		webDoneChan <- http.ListenAndServe(":3000", nil)
 	}()
+
 	select {
 	case err := <-webDoneChan:
 		log.Warnf("Web server exited: %s", err)
