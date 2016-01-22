@@ -26,7 +26,7 @@ func main() {
 	defer rc.Close()
 
 	// Discover
-	name := "Test Epel"
+	name := "TestEpel"
 	path := "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
 	if err = rc.Discover(name, path); err != nil {
 		log.WithFields(log.Fields{
@@ -52,6 +52,9 @@ func main() {
 		defer wg.Done()
 		interfaces.StartWeb(dirConfigs, shutdownChan)
 	}()
+
+	// start repo watchers
+	rc.StartWatcher(repos, shutdownChan, wg)
 
 	// Wait for shutdown signal
 	select {
