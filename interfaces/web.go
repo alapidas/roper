@@ -1,7 +1,6 @@
 package interfaces
 
 import (
-	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -14,14 +13,6 @@ type DirConfigs interface {
 type DirConfig interface {
 	TopLevel() string
 	AbsPath() string
-}
-
-func convertArgz(argz interface{}) (DirConfigs, error) {
-	configs, ok := argz.(DirConfigs)
-	if !ok {
-		return nil, fmt.Errorf("unable to convert provided arg to DirConfig")
-	}
-	return configs, nil
 }
 
 // StartWeb simply provides a web server for the files in repos
