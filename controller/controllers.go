@@ -26,10 +26,6 @@ type RoperController struct {
 	db *bolt.DB
 }
 
-type RepoController struct {
-	db *bolt.DB
-}
-
 type RepoWatcher struct {
 	*fsnotify.Watcher
 	absPath string
@@ -198,7 +194,7 @@ func (rc *RoperController) PersistRepo(repo *model.Repo) error {
 	return nil
 }
 
-func (rc *RepoController) GetPackages(repoName string) ([]*model.Package, error) {
+func (rc *RoperController) GetPackages(repoName string) ([]*model.Package, error) {
 	return nil, fmt.Errorf("not yet implemented")
 }
 
@@ -340,4 +336,23 @@ func (rc *RoperController) GetRepos() ([]*model.Repo, error) {
 	return repos, nil
 }
 
-// Write something to Persist a Repo + Packages
+// A super duper internal debug method to dump the contents of the packages table
+func (rc *RoperController) dumpPackages() {
+	err := rc.db.View(func(tx *bolt.Tx) error {
+		pb := tx.Bucket([]byte(pkg_bucket))
+		return pb.ForEach(func(k, v []byte) error {
+			pkg := &model.Package{}
+			if err := json.Unmarshal(v, pkg); err != nil {
+				fmt.Errorf("unable to unmarshal package: %s", err)
+			}
+			log.WithFields(log.Fields{
+				"key": 	string(k[:]),
+				"value": pkg.RelPath,
+			}).Info("found pkg")
+			return nil
+		})
+	})
+	if err != nil {
+		log.WithField("error", err).Error("error printing packages")
+	}
+}
