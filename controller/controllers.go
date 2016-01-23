@@ -10,6 +10,7 @@ import (
 	"gopkg.in/fsnotify.v1"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -73,66 +74,77 @@ func (rc *RoperController) Close() error {
 // TODO: There are issues with concurrency in here  - I can't keep the passed in repos, I need to re-get them every time
 // TODO: Spaghetti if/else whomp whomp fix this
 func (rc *RoperController) StartWatcher(shutdownChan chan struct{}, errChan chan error, repos []*model.Repo) {
-	// add all files we know about
-	for _, repo := range repos {
-		watcher, err := fsnotify.NewWatcher()
-		defer watcher.Close()
-		if err != nil {
-			errChan <- fmt.Errorf("error creating watcher: %s", err)
-			return
-		}
-		log.WithField("path", repo.AbsPath).Infof("Creating watcher")
-		repoWatcher := &RepoWatcher{watcher, repo.AbsPath, repo.Name}
-		for pkgPath, _ := range repo.Packages {
-			absPath := filepath.Join(repo.AbsPath, pkgPath)
-			log.WithField("pkg_path", absPath).Infof("Adding path to watcher")
-			repoWatcher.Add(absPath)
-		}
-		for {
-			select {
-			case evt := <-repoWatcher.Events:
-				log.WithFields(log.Fields{
-					"pkg_path":  evt.Name,
-					"operation": evt.Op,
-				}).Info("File change detected")
-				if evt.Op&fsnotify.Remove == fsnotify.Remove {
-					log.WithField("pkg_path", evt.Name).Info("package removed from disk, removing from database")
-					repo, err = rc.GetRepo(repoWatcher.name)
-					if err != nil {
-						log.WithFields(log.Fields{
-							"repo_name": repoWatcher.name,
-							"error":     err,
-						}).Error("Error getting repo from database")
-					} else {
-						if repo.AbsPath != repoWatcher.absPath {
+	// Start watchers for all the repos we know about.  Start a routine for each, and make sure they
+	// all shut down properly too
+	wg := &sync.WaitGroup{}
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		for _, repo := range repos {
+			watcher, err := fsnotify.NewWatcher()
+			defer watcher.Close()
+			if err != nil {
+				errChan <- fmt.Errorf("error creating watcher: %s", err)
+				return
+			}
+			log.WithField("path", repo.AbsPath).Infof("Creating watcher")
+			repoWatcher := &RepoWatcher{watcher, repo.AbsPath, repo.Name}
+			for pkgPath, _ := range repo.Packages {
+				absPath := filepath.Join(repo.AbsPath, pkgPath)
+				log.WithField("pkg_path", absPath).Infof("Adding path to watcher")
+				repoWatcher.Add(absPath)
+			}
+			for {
+				select {
+				case evt := <-repoWatcher.Events:
+					removed := evt.Op & fsnotify.Remove == fsnotify.Remove
+					renamed := evt.Op & fsnotify.Rename == fsnotify.Rename
+					log.WithFields(log.Fields{
+						"pkg_path":  evt.Name,
+						"operation": evt.Op,
+						"renamed":   renamed,
+						"removed":   removed,
+					}).Info("File change detected")
+					if renamed || removed {
+						log.WithField("pkg_path", evt.Name).Info("package removed/renamed, removing from database")
+						repo, err = rc.GetRepo(repoWatcher.name)
+						if err != nil {
 							log.WithFields(log.Fields{
-								"repo_db_path":      repo.AbsPath,
-								"watcher_repo_path": repoWatcher.absPath,
-							}).Error("watcher repo path out of sync with repo path in db")
-							// TODO: restart watcher?
+								"repo_name": repoWatcher.name,
+								"error":     err,
+							}).Error("Error getting repo from database")
 						} else {
-							relPath, err := filepath.Rel(repoWatcher.absPath, evt.Name)
-							if err != nil {
-								log.WithField("error", err).Error("error getting rel path")
+							if repo.AbsPath != repoWatcher.absPath {
+								log.WithFields(log.Fields{
+									"repo_db_path":      repo.AbsPath,
+									"watcher_repo_path": repoWatcher.absPath,
+								}).Error("watcher repo path out of sync with repo path in db")
+								// TODO: restart watcher?
 							} else {
-								delete(repo.Packages, relPath)
-								if rc.PersistRepo(repo); err != nil {
-									log.WithField("error", err).Error("Unable to persist repo")
+								relPath, err := filepath.Rel(repoWatcher.absPath, evt.Name)
+								if err != nil {
+									log.WithField("error", err).Error("error getting rel path")
+								} else {
+									delete(repo.Packages, relPath)
+									if rc.PersistRepo(repo); err != nil {
+										log.WithField("error", err).Error("Unable to persist repo")
+									}
 								}
 							}
 						}
 					}
-				}
 				//TODO: handle rename, new files
-			// TODO: handle error chan
-			case err := <-repoWatcher.Errors:
-				log.Errorf("GOT THIS ERROR: %s", err)
-			case <-shutdownChan:
-				log.Infof("Watcher received shutdown signal, exiting")
-				return
+				// TODO: handle error chan
+				case err := <-repoWatcher.Errors:
+					log.Errorf("GOT THIS ERROR: %s", err)
+				case <-shutdownChan:
+					log.Infof("Watcher received shutdown signal, exiting")
+					return
+				}
 			}
 		}
-	}
+	}()
+	wg.Wait()
 	return
 }
 
