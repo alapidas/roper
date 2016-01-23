@@ -3,16 +3,49 @@ package main
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/alapidas/roper/controller"
-	//"github.com/codegangsta/cli"
 	"github.com/alapidas/roper/interfaces"
 	"os"
 	"os/signal"
 	"sync"
 )
 
+// An async task type.  Implementors should look for the close of the shutdown
+// channel as a signal to close up shop, and use argz.  NOTE that type conversion
+// is done at runtime, so be careful with the arguments you pass in.
+// TODO: Currently unused - to use, need to make the argz be a compile-time thing
+type AsyncTask func(shutdownChan chan struct{}, argz interface{}) error
+
+// asyncTask knows how to asynchronously kick off an AsyncTask with some arbitrary argz
+// TODO: Unused, see AsyncTask notes above
+func asyncTask(wg *sync.WaitGroup, shutdownChan chan struct{}, errChan chan error, asyncFunc AsyncTask, argz interface{}) {
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		errChan <- asyncFunc(shutdownChan, argz)
+	}()
+}
+
+// webserverDirConfigs is a container for webserverDirConfig items, meeting the interface for the web server's argument
+// for the AsyncTask method
+type webserverDirConfigs struct {
+	configs []interfaces.DirConfig
+}
+
+type webserverDirConfig struct {
+	absPath  string
+	topLevel string
+}
+
+func (ws webserverDirConfigs) Configs() []interfaces.DirConfig { return ws.configs }
+func (w webserverDirConfig) AbsPath() string                   { return w.absPath }
+func (w webserverDirConfig) TopLevel() string                  { return w.topLevel }
+
+
 func main() {
-	var wg sync.WaitGroup
+	wg := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
+	// TODO: Make this buffered and handle multiple errors coming in on it.  Only handles one error, then exits now.
+	errChan := make(chan error, 1)
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 
@@ -34,67 +67,49 @@ func main() {
 			path: path,
 		}).Fatal("Unable to discover repo - exiting")
 	}
-
-	// start web server
-	dirConfigs := []interfaces.DirConfig{}
 	repos, err := rc.GetRepos()
 	if err != nil {
 		log.Fatalf("Unable to get all repos to start web server: %s", err)
 	}
+
+	// start web server
+	dirConfigs := webserverDirConfigs{}
 	for _, repo := range repos {
-		dirConfigs = append(dirConfigs, interfaces.DirConfig{
-			TopLevel: repo.Name,
-			AbsPath:  repo.AbsPath,
+		dirConfigs.configs = append(dirConfigs.configs, webserverDirConfig{
+			topLevel: repo.Name,
+			absPath:  repo.AbsPath,
 		})
 	}
-	wg.Add(1)
 	go func() {
+		wg.Add(1)
 		defer wg.Done()
-		interfaces.StartWeb(dirConfigs, shutdownChan)
+		interfaces.StartWeb(shutdownChan, errChan, dirConfigs)
 	}()
 
 	// start repo watchers
-	rc.StartWatcher(repos, shutdownChan, wg)
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		rc.StartWatcher(shutdownChan, errChan, repos)
+	}()
+
+	// Log errors on the err chan
+	go func() {
+		for {
+			select {
+			case err := <-errChan:
+				log.WithField("error", err).Error("Received error on chan")
+			}
+		}
+	}()
 
 	// Wait for shutdown signal
 	select {
 	case <-signalChan:
 		log.Warn("Received shutdown signal in main")
-		close(shutdownChan)
 	}
-	wg.Wait()
-	//app := makeApp()
-	//app.RunAndExitOnError()
-}
 
-/*func makeApp() *cli.App {
-	app := cli.NewApp()
-	app.Name = "roper"
-	app.Usage = "A repo manager that doesn't suck"
-	app.Commands = []cli.Command{
-		{
-			Name:    "server",
-			Aliases: []string{"s"},
-			Usage:   "start a server to manage a repo",
-			Flags: []cli.Flag{
-				cli.StringSliceFlag{
-					Name:  "loc, repoloc",
-					Usage: "required - comma-separated location(s) of local repos to manage (ex., /var/repos/myRepo)",
-				},
-			},
-			Before: func(c *cli.Context) error {
-				if len(c.StringSlice("loc")) == 0 {
-					return fmt.Errorf("Must include local repo(s) to manage")
-				}
-				return nil
-			},
-			Action: func(c *cli.Context) {
-				myServer := controller.NewServer()
-				if err := myServer.Start(c); err != nil {
-					os.Exit(1)
-				}
-			},
-		},
-	}
-	return app
-}*/
+	// Wait for all routines to finish
+	close(shutdownChan)
+	wg.Wait()
+}
