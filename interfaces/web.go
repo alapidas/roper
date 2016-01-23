@@ -1,29 +1,37 @@
 package interfaces
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"net/http"
 )
 
-type DirConfig struct {
-	TopLevel string
-	AbsPath  string
+type DirConfigs interface {
+	Configs() []DirConfig
+}
+
+type DirConfig interface {
+	TopLevel() string
+	AbsPath() string
+}
+
+func convertArgz(argz interface{}) (DirConfigs, error) {
+	configs, ok := argz.(DirConfigs)
+	if !ok {
+		return nil, fmt.Errorf("unable to convert provided arg to DirConfig")
+	}
+	return configs, nil
 }
 
 // StartWeb simply provides a web server for the files in repos
-func StartWeb(dirs []DirConfig, shutdownChan chan struct{}) error {
+func StartWeb(shutdownChan chan struct{}, errChan chan error, dirs DirConfigs) {
 	r := mux.NewRouter()
-	prefixes := make([]string, len(dirs))
-	for _, dir := range dirs {
-		prefixes = append(prefixes, dir.TopLevel)
-		r.PathPrefix(
-			"/" + dir.TopLevel + "/",
-		).Handler(
-			http.StripPrefix(
-				"/"+dir.TopLevel+"/", http.FileServer(http.Dir(dir.AbsPath+"/")),
-			),
-		)
+	prefixes := make([]string, len(dirs.Configs()))
+	for _, dir := range dirs.Configs() {
+		prefixes = append(prefixes, dir.TopLevel())
+		handler := http.StripPrefix("/"+dir.TopLevel()+"/", http.FileServer(http.Dir(dir.AbsPath()+"/")))
+		r.PathPrefix("/" + dir.TopLevel() + "/").Handler(handler)
 	}
 	http.Handle("/", r)
 
@@ -42,5 +50,5 @@ func StartWeb(dirs []DirConfig, shutdownChan chan struct{}) error {
 	case <-shutdownChan:
 		log.Warn("Web server received shutdown signal")
 	}
-	return nil
+	return
 }
