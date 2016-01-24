@@ -65,13 +65,138 @@ func (rc *RoperController) Close() error {
 	return nil
 }
 
-// StartWatcher will start a watcher to watch for any filesystem changes to existing packages in a repo.
-// This _WILL NOT_ detect new packages.  Need to handle that somewhere else
+
+func (rc *RoperController) runCreaterepo(repoName string) error { return fmt.Errorf("not yet implemented") }
+
+// scanForNewFields will scan all known repos for new files, and return the names of any repos
+// that are otu of sync.  This does NOT check to see that the file is the same, just that a file
+// exists.
+func (rc *RoperController) scanForNewFiles() ([]string, error) {
+
+	var ErrNewFileFound error
+
+	repos, err := rc.GetRepos()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get repos: %s", err)
+	}
+	outOfSyncRepos := make([]string, 0, len(repos))
+	for _, repo := range repos {
+		// make a copy of package relpaths for tracking
+		pkgsInRepo := make(map[string]struct{}, len(repo.Packages))
+		for pkgPath, _ := range repo.Packages {
+			pkgsInRepo[pkgPath] = struct{}{}
+		}
+		// look at all the actual files
+		err := filepath.Walk(repo.AbsPath, func(filePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			// get the relpath
+			relpath, err := filepath.Rel(repo.AbsPath, filePath)
+			if err != nil {
+				return err
+			}
+			// new file
+			if _, ok := pkgsInRepo[relpath]; !ok {
+				return ErrNewFileFound
+			}
+			delete(pkgsInRepo, relpath)
+			return nil
+		})
+		if err == ErrNewFileFound {
+			log.WithFields(log.Fields{
+				"repo": repo.Name,
+			}).Warn("repo is out of sync with db (probably new files on disk)")
+			outOfSyncRepos = append(outOfSyncRepos, repo.Name)
+		} else if err != nil {
+			return nil, fmt.Errorf("error scanning for new files on repo %s: %s", repo.Name, err)
+		} else if len(pkgsInRepo) > 0 {
+			// files missing on disk
+			log.WithFields(log.Fields{
+				"packages": pkgsInRepo,
+			}).Warn("repo is out of sync with db (db has files not found on disk)")
+			outOfSyncRepos = append(outOfSyncRepos, repo.Name)
+		}
+	}
+	return nil, err
+}
+
+
 // TODO: There are issues with concurrency in here  - I can't keep the passed in repos, I need to re-get them every time
 // TODO: Spaghetti if/else whomp whomp fix this
-func (rc *RoperController) StartWatcher(shutdownChan chan struct{}, errChan chan error, repos []*model.Repo) {
+func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan error) {
 	// Start watchers for all the repos we know about.  Start a routine for each, and make sure they
 	// all shut down properly too
+
+	// TODO: Make ticker interval a param
+	ticker := time.NewTicker(time.Minute * 1)
+	defer ticker.Stop()
+
+	repos, err := rc.GetRepos()
+	if err != nil {
+		errChan <- fmt.Errorf("unable to get repos: %s", err)
+		return
+	}
+	watcherShutdownChan := make(chan struct{})
+	watcherErrChan := make(chan error, 1)
+
+	watcherWg := &sync.WaitGroup{}
+	doStartWatchers := func(repos []*model.Repo) {
+		watcherWg.Add(1)
+		defer watcherWg.Done()
+		rc.startWatchers(watcherShutdownChan, watcherErrChan, repos)
+	}
+	go doStartWatchers(repos)
+
+	for {
+		select {
+		case <-ticker.C:
+			log.Info("Running sync against all known repos")
+			changedRepos, err := rc.scanForNewFiles()
+			if err != nil {
+				log.WithField("error", err).Error("error runing scan against repos")
+				errChan <- err
+				return
+			}
+			if len(changedRepos) > 0 {
+				close(watcherShutdownChan)
+				watcherWg.Wait()
+				// THEN
+				if err = rc.DiscoverAllKnown(); err != nil {
+					log.WithField("error", err).Error("error restarting watchers")
+					errChan <- err
+					return
+				}
+				// THEN
+				repos, err := rc.GetRepos()
+				if err != nil {
+					log.WithField("error", err).Error("error restarting watchers")
+					errChan <- err
+					return
+				}
+				go doStartWatchers(repos)
+			}
+		case err := <-watcherErrChan:
+			log.WithField("error", err).Errorf("received error from watcher")
+			errChan <- err
+			close(watcherShutdownChan)
+			watcherWg.Wait()
+			return
+		case <- shutdownChan:
+			log.Infof("Watcher received shutdown signal, exiting")
+			close(watcherShutdownChan)
+			watcherWg.Wait()
+			return
+		}
+	}
+}
+
+// startWatchers will start fs watchers to watch for any filesystem changes to existing packages in a repo.
+// This _WILL NOT_ detect new packages.  This method is synchronous.  It runs goroutines for all repos, and will
+// not return until all routines have stopped via closing the shutdownChan
+// TODO: Allow only stopping a given routine, not all of them
+func (rc *RoperController) startWatchers(shutdownChan chan struct{}, errChan chan error, repos []*model.Repo) {
+
 	wg := &sync.WaitGroup{}
 	go func() {
 		wg.Add(1)
@@ -93,8 +218,8 @@ func (rc *RoperController) StartWatcher(shutdownChan chan struct{}, errChan chan
 			for {
 				select {
 				case evt := <-repoWatcher.Events:
-					removed := evt.Op & fsnotify.Remove == fsnotify.Remove
-					renamed := evt.Op & fsnotify.Rename == fsnotify.Rename
+					removed := evt.Op&fsnotify.Remove == fsnotify.Remove
+					renamed := evt.Op&fsnotify.Rename == fsnotify.Rename
 					log.WithFields(log.Fields{
 						"pkg_path":  evt.Name,
 						"operation": evt.Op,
@@ -129,10 +254,11 @@ func (rc *RoperController) StartWatcher(shutdownChan chan struct{}, errChan chan
 							}
 						}
 					}
-				//TODO: handle rename, new files
-				// TODO: handle error chan
+				// TODO: handle new files
 				case err := <-repoWatcher.Errors:
-					log.Errorf("GOT THIS ERROR: %s", err)
+					log.WithField("error", err).Error("Error on watcher")
+					errChan <- err
+					return
 				case <-shutdownChan:
 					log.Infof("Watcher received shutdown signal, exiting")
 					return
@@ -237,6 +363,20 @@ func (rc *RoperController) GetRepo(repoName string) (*model.Repo, error) {
 	return nil, fmt.Errorf("unable to find package %s in repo %s", pkgPath, repoName)
 }*/
 
+func (rc *RoperController) DiscoverAllKnown() error {
+	log.Info("Discovering all repos")
+	repos, err := rc.GetRepos()
+	if err != nil {
+		return fmt.Errorf("unable to discover all repos: %s", err)
+	}
+	for _, repo := range repos {
+		if err = rc.Discover(repo.Name, repo.AbsPath); err != nil {
+			return fmt.Errorf("unable to discover all repos: %s", err)
+		}
+	}
+	return nil
+}
+
 // Discover will create a repo at a path, and walk it, adding packages that it finds.
 func (rc *RoperController) Discover(name, path string) error {
 	log.WithFields(log.Fields{
@@ -268,7 +408,7 @@ func (rc *RoperController) Discover(name, path string) error {
 		}
 		return nil
 	})
-	// TODO: Handle persisting the packages separately
+	// TODO: Handle persisting the packages separately?
 	if err = rc.PersistRepo(repo); err != nil {
 		return fmt.Errorf("unable to persist repo %s: %s", repo.Name, err)
 	}
@@ -346,7 +486,7 @@ func (rc *RoperController) dumpPackages() {
 				fmt.Errorf("unable to unmarshal package: %s", err)
 			}
 			log.WithFields(log.Fields{
-				"key": 	string(k[:]),
+				"key":   string(k[:]),
 				"value": pkg.RelPath,
 			}).Info("found pkg")
 			return nil

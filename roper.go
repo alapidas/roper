@@ -40,7 +40,6 @@ func (ws webserverDirConfigs) Configs() []interfaces.DirConfig { return ws.confi
 func (w webserverDirConfig) AbsPath() string                   { return w.absPath }
 func (w webserverDirConfig) TopLevel() string                  { return w.topLevel }
 
-
 func main() {
 	wg := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
@@ -59,13 +58,16 @@ func main() {
 	defer rc.Close()
 
 	// Discover
-	name := "TestEpel"
-	path := "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
-	if err = rc.Discover(name, path); err != nil {
-		log.WithFields(log.Fields{
-			name: name,
-			path: path,
-		}).Fatal("Unable to discover repo - exiting")
+	repoMap := make(map[string]string, 2)
+	repoMap["TestEpel"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
+	repoMap["Docker"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7"
+	for name, path := range repoMap {
+		if err = rc.Discover(name, path); err != nil {
+			log.WithFields(log.Fields{
+				name: name,
+				path: path,
+			}).Fatal("Unable to discover repo - exiting")
+		}
 	}
 	repos, err := rc.GetRepos()
 	if err != nil {
@@ -90,21 +92,13 @@ func main() {
 	go func() {
 		wg.Add(1)
 		defer wg.Done()
-		rc.StartWatcher(shutdownChan, errChan, repos)
+		rc.StartMonitor(shutdownChan, errChan)
 	}()
 
-	// Log errors on the err chan
-	go func() {
-		for {
-			select {
-			case err := <-errChan:
-				log.WithField("error", err).Error("Received error on chan")
-			}
-		}
-	}()
-
-	// Wait for shutdown signal
+	// Wait for shutdown signal.  Also let's just die if anything returns an error.
 	select {
+	case err := <-errChan:
+		log.WithField("error", err).Error("Received error on chan")
 	case <-signalChan:
 		log.Warn("Received shutdown signal in main")
 	}
