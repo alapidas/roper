@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/alapidas/roper/model"
@@ -65,15 +66,16 @@ func (rc *RoperController) Close() error {
 	return nil
 }
 
-
-func (rc *RoperController) runCreaterepo(repoName string) error { return fmt.Errorf("not yet implemented") }
+func (rc *RoperController) runCreaterepo(repoName string) error {
+	return fmt.Errorf("not yet implemented")
+}
 
 // scanForNewFields will scan all known repos for new files, and return the names of any repos
 // that are otu of sync.  This does NOT check to see that the file is the same, just that a file
 // exists.
 func (rc *RoperController) scanForNewFiles() ([]string, error) {
 
-	var ErrNewFileFound error
+	ErrNewFileFound := errors.New("new file found")
 
 	repos, err := rc.GetRepos()
 	if err != nil {
@@ -97,7 +99,11 @@ func (rc *RoperController) scanForNewFiles() ([]string, error) {
 				return err
 			}
 			// new file
-			if _, ok := pkgsInRepo[relpath]; !ok {
+			if _, ok := pkgsInRepo[relpath]; !ok && !info.IsDir() {
+				log.WithFields(log.Fields{
+					"repo": repo.Name,
+					"path": relpath,
+				}).Info("new file on disk detected")
 				return ErrNewFileFound
 			}
 			delete(pkgsInRepo, relpath)
@@ -118,9 +124,8 @@ func (rc *RoperController) scanForNewFiles() ([]string, error) {
 			outOfSyncRepos = append(outOfSyncRepos, repo.Name)
 		}
 	}
-	return nil, err
+	return outOfSyncRepos, nil
 }
-
 
 // TODO: There are issues with concurrency in here  - I can't keep the passed in repos, I need to re-get them every time
 // TODO: Spaghetti if/else whomp whomp fix this
@@ -129,7 +134,7 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 	// all shut down properly too
 
 	// TODO: Make ticker interval a param
-	ticker := time.NewTicker(time.Minute * 1)
+	ticker := time.NewTicker(time.Second * 15)
 	defer ticker.Stop()
 
 	repos, err := rc.GetRepos()
@@ -161,6 +166,7 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 			if len(changedRepos) > 0 {
 				close(watcherShutdownChan)
 				watcherWg.Wait()
+				watcherShutdownChan = make(chan struct{})
 				// THEN
 				if err = rc.DiscoverAllKnown(); err != nil {
 					log.WithField("error", err).Error("error restarting watchers")
@@ -182,7 +188,7 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 			close(watcherShutdownChan)
 			watcherWg.Wait()
 			return
-		case <- shutdownChan:
+		case <-shutdownChan:
 			log.Infof("Watcher received shutdown signal, exiting")
 			close(watcherShutdownChan)
 			watcherWg.Wait()
@@ -198,10 +204,10 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 func (rc *RoperController) startWatchers(shutdownChan chan struct{}, errChan chan error, repos []*model.Repo) {
 
 	wg := &sync.WaitGroup{}
-	go func() {
-		wg.Add(1)
-		defer wg.Done()
-		for _, repo := range repos {
+	for _, repo := range repos {
+		go func() {
+			wg.Add(1)
+			defer wg.Done()
 			watcher, err := fsnotify.NewWatcher()
 			defer watcher.Close()
 			if err != nil {
@@ -264,8 +270,8 @@ func (rc *RoperController) startWatchers(shutdownChan chan struct{}, errChan cha
 					return
 				}
 			}
-		}
-	}()
+		}()
+	}
 	wg.Wait()
 	return
 }
