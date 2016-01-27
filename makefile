@@ -21,10 +21,10 @@ test:
 	$(GO_PREFIX) go test ./...
 
 build:
-	$(GO_PREFIX) go build roper.go
+	$(GO_PREFIX) go build main.go
 
-run:
-	$(GO_PREFIX) go run roper.go server --loc /test_repos/epel
+run: build
+	./main serve
 
 # Godep targets
 godep_save:

@@ -27,7 +27,7 @@ _testmain.go
 gin-bin
 
 # Roper
-roper
+main
 
 # cover
 cover.out
