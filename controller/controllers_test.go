@@ -121,3 +121,28 @@ func (suite *TheSuite) TestGetRepos(c *C) {
 	c.Assert(repos[0], DeepEquals, repo2)
 	c.Assert(repos[1], DeepEquals, repo)
 }
+
+
+func (suite *TheSuite) TestRemoveRepo(c *C) {
+	repo := &model.Repo{Name: "TestRepo", AbsPath: suite.repoPath}
+	pkgs := make(map[string]*model.Package)
+	pkg, err := suite.mkPkg("a/b/c.rpm", "TestRepo")
+	c.Assert(err, IsNil)
+	pkgs[pkg.RelPath] = pkg
+	repo.Packages = pkgs
+
+	err = suite.rc.PersistRepo(repo)
+	c.Assert(err, IsNil)
+
+	repos, err := suite.rc.GetRepos()
+	c.Assert(err, IsNil)
+	c.Assert(len(repos), Equals, 1)
+	c.Assert(repos[0], DeepEquals, repo)
+
+	// Now let's delete it
+	err = suite.rc.RemoveRepo("TestRepo")
+	c.Assert(err, IsNil)
+	repos, err = suite.rc.GetRepos()
+	c.Assert(err, IsNil)
+	c.Assert(len(repos), Equals, 0)
+}

@@ -276,6 +276,28 @@ func (rc *RoperController) startWatchers(shutdownChan chan struct{}, errChan cha
 	return
 }
 
+func (rc *RoperController) RemoveRepo(name string) error {
+	err := rc.db.Update(func(tx *bolt.Tx) error {
+		repo, err := rc.getRepo(tx, name)
+		if err != nil {
+			return fmt.Errorf("unable to remove repo: %s", err)
+		}
+		pr := &model.PersistableRepo{*repo}
+		var ppackages []*model.PersistablePackage
+		for _, pkg := range repo.Packages {
+			ppackages = append(ppackages, &model.PersistablePackage{*pkg})
+		}
+		if err = rc.removeRepo(tx, pr); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("unable to delete repo: %s", err)
+	}
+	return nil
+}
+
 // PersistRepo will persist a Repo.  This will persist the repo and all the packages.
 // If the repo already exists, it will first be purged, along with all its associated packages.
 func (rc *RoperController) PersistRepo(repo *model.Repo) error {
@@ -286,6 +308,7 @@ func (rc *RoperController) PersistRepo(repo *model.Repo) error {
 	}
 	// open xn
 	err := rc.db.Update(func(tx *bolt.Tx) error {
+		// TODO: this delete code can be consolidated into the internal function call
 		pb := tx.Bucket([]byte(pkg_bucket))
 		rb := tx.Bucket([]byte(repo_bucket))
 		// delete curr packages
@@ -449,6 +472,29 @@ func (rc *RoperController) getRepo(tx *bolt.Tx, repoName string) (*model.Repo, e
 	}
 	repo.SetPackages(pkgs)
 	return repo, nil
+}
+
+// removeRepo is an internal API method that deletes a repo, given a transaction
+func (rc *RoperController) removeRepo(tx *bolt.Tx, pr *model.PersistableRepo) error {
+	pb := tx.Bucket([]byte(pkg_bucket))
+	rb := tx.Bucket([]byte(repo_bucket))
+	// delete curr packages
+	c := pb.Cursor()
+	prefix := []byte(pr.Name + "::")
+	for k, _ := c.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = c.Next() {
+		if err := pb.Delete(k); err != nil {
+			return fmt.Errorf("unable to delete package %s: %s", k, err)
+		}
+	}
+	// delete repo
+	prKey, _, err := pr.Serial()
+	if err != nil {
+		return fmt.Errorf("unable to get serialized vals for repo %s: %s", pr.Name, err)
+	}
+	if err := rb.Delete(prKey); err != nil { // returns nil err on nonexistent key
+		return fmt.Errorf("unable to delete repo %s: %s", pr.Name, err)
+	}
+	return nil
 }
 
 // getPackagesForRepo is an internal API method used for getting packages inside of another xn

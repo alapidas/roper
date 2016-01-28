@@ -28,6 +28,7 @@ gin-bin
 
 # Roper
 roper
+roper.db
 
 # cover
 cover.out

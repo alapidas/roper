@@ -22,22 +22,22 @@ import (
 )
 
 // addCmd represents the add command
-var addCmd = &cobra.Command{
-	Use:   "add <repo_path> <repo_name>",
-	Short: "Add a repo to roper",
+var repoRmCmd = &cobra.Command{
+	Use:   "rm <repo_name>",
+	Short: "Remove a repo from roper",
 	Long: `
-Add a given yum repository at a given path on the filesystem to roper using the provided name.`,
-	Run: addFunc,
+Remove a repo from roper`,
+	Run: repoRmFunc,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) != 2 {
-			return errors.New("add command requires 2 positional arguments")
+		if len(args) != 1 {
+			return errors.New("rm command requires 1 positional argument")
 		}
 		return nil
 	},
 }
 
 func init() {
-	repoCmd.AddCommand(addCmd)
+	repoCmd.AddCommand(repoRmCmd)
 
 	// Here you will define your flags and configuration settings.
 
@@ -51,20 +51,15 @@ func init() {
 
 }
 
-func addFunc(cmd *cobra.Command, args []string) {
-	path := args[0]
-	name := args[1]
-
-	//repoMap := make(map[string]string, 2)
-	//repoMap["TestEpel"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
-	//repoMap["Docker"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7"
-
-	if err := rc.Discover(name, path); err != nil {
+func repoRmFunc(cmd *cobra.Command, args []string) {
+	name := args[0]
+	if err := rc.RemoveRepo(name); err != nil {
 		log.WithFields(log.Fields{
-			"name": name,
-			"path": path,
-			"err": err,
-		}).Error("Unable to discover repo - exiting")
+			"repo": name,
+			"error": err,
+		}).Error("Error removing repo")
 		return
 	}
+	log.WithField("repo", name).Info("Repo successfully removed")
+	return
 }

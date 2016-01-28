@@ -15,37 +15,35 @@
 package cmd
 
 import (
+	log "github.com/Sirupsen/logrus"
+
 	"github.com/spf13/cobra"
 )
 
-var (
-	repoLoc string
-)
-// repoCmd represents the repo command
-var repoCmd = &cobra.Command{
-	Use:   "repo",
-	Short: "Perform an action on a repo",
+// addCmd represents the add command
+var repoLsCmd = &cobra.Command{
+	Use:   "ls",
+	Short: "List repos within roper",
 	Long: `
-The repo subcommand is the general entrypoint for operations on repositories.
-Note that, generally speaking, repo subcommands cannot be run while
-the roper server is running due to an exclusive lock taken out on the
-internal storage.`,
-
+List out the repos that roper is managing`,
+	Run: repoLsFunc,
 }
 
 func init() {
-	RootCmd.AddCommand(repoCmd)
+	repoCmd.AddCommand(repoLsCmd)
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// repoCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// addCmd.PersistentFlags().String("foo", "", "A help for foo")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// repoCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// addCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	repoCmd.PersistentFlags().StringVar(&repoLoc, "repoloc", "", "Location of repo to add to config")
-	repoCmd.MarkPersistentFlagRequired("repoloc")
+}
+
+func repoLsFunc(cmd *cobra.Command, args []string) {
+	log.Info("Would have listed repos")
 }
