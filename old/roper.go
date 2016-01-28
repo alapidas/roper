@@ -1,4 +1,4 @@
-package main
+package old
 
 import (
 	log "github.com/Sirupsen/logrus"
@@ -40,7 +40,7 @@ func (ws webserverDirConfigs) Configs() []interfaces.DirConfig { return ws.confi
 func (w webserverDirConfig) AbsPath() string                   { return w.absPath }
 func (w webserverDirConfig) TopLevel() string                  { return w.topLevel }
 
-func main() {
+func oldMain() {
 	wg := &sync.WaitGroup{}
 	shutdownChan := make(chan struct{})
 	// TODO: Make this buffered and handle multiple errors coming in on it.  Only handles one error, then exits now.
