@@ -20,6 +20,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	verbose bool
+)
+
 // addCmd represents the add command
 var repoLsCmd = &cobra.Command{
 	Use:   "ls",
@@ -42,8 +46,24 @@ func init() {
 	// is called directly, e.g.:
 	// addCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+	repoLsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print out packages in repo as well")
+
 }
 
 func repoLsFunc(cmd *cobra.Command, args []string) {
-	log.Info("Would have listed repos")
+	repos, err := rc.GetRepos()
+	if err != nil {
+		log.WithField("error", err).Error("Error retrieving repos")
+		return
+	}
+
+	// TODO: Print this more better
+	for _, repo := range repos {
+		log.Infof("NAME: %s | PATH: %s", repo.Name, repo.AbsPath)
+		if verbose {
+			for pkg, _ := range repo.Packages {
+				log.Infof("PACKAGE: %s", pkg)
+			}
+		}
+	}
 }
