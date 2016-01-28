@@ -21,10 +21,15 @@ test:
 	$(GO_PREFIX) go test ./...
 
 build:
-	$(GO_PREFIX) go build main.go
+	$(GO_PREFIX) go build -o roper main.go
 
 run: build
-	./main serve
+	./roper serve
+
+run_bootstrapped: build
+	./roper repo add /Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel TestEpel
+	./roper repo add /Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7 Docker
+	./roper serve
 
 # Godep targets
 godep_save:

@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"errors"
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/spf13/cobra"
@@ -22,24 +23,16 @@ import (
 
 // addCmd represents the add command
 var addCmd = &cobra.Command{
-	Use:   "add",
+	Use:   "add <repo_path> <repo_name>",
 	Short: "Add a repo to roper",
 	Long: `
-Add a given yum repository on the filesystem to roper.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		// Discover
-		repoMap := make(map[string]string, 2)
-		repoMap["TestEpel"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
-		repoMap["Docker"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7"
-		for name, path := range repoMap {
-			if err := rc.Discover(name, path); err != nil {
-				log.WithFields(log.Fields{
-					name: name,
-					path: path,
-				}).Fatal("Unable to discover repo - exiting")
-			}
+Add a given yum repository at a given path on the filesystem to roper using the provided name.`,
+	Run: addFunc,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 2 {
+			return errors.New("add command requires 2 positional arguments")
 		}
+		return nil
 	},
 }
 
@@ -56,4 +49,22 @@ func init() {
 	// is called directly, e.g.:
 	// addCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+}
+
+func addFunc(cmd *cobra.Command, args []string) {
+	path := args[0]
+	name := args[1]
+
+	//repoMap := make(map[string]string, 2)
+	//repoMap["TestEpel"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
+	//repoMap["Docker"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7"
+
+	if err := rc.Discover(name, path); err != nil {
+		log.WithFields(log.Fields{
+			"name": name,
+			"path": path,
+			"err": err,
+		}).Error("Unable to discover repo - exiting")
+		return
+	}
 }

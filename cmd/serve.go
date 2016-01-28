@@ -55,18 +55,6 @@ your repos and monitor them for changes.
 
 		log.Infof("Starting Server")
 
-		// Discover
-		repoMap := make(map[string]string, 2)
-		repoMap["TestEpel"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel"
-		repoMap["Docker"] = "/Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7"
-		for name, path := range repoMap {
-			if err := rc.Discover(name, path); err != nil {
-				log.WithFields(log.Fields{
-					name: name,
-					path: path,
-				}).Fatal("Unable to discover repo - exiting")
-			}
-		}
 		repos, err := rc.GetRepos()
 		if err != nil {
 			log.Fatalf("Unable to get all repos to start web server: %s", err)

@@ -79,11 +79,13 @@ func init() {
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.roper.yaml)")
 
+	// determine default DB path
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		panic("unable to get path of roper executable")
 	}
 	defaultDbPath := filepath.Join(dir, "roper.db")
+
 	RootCmd.PersistentFlags().StringVar(&dbPath, "dbpath", defaultDbPath, "path to the roper database")
 
 	// Cobra also supports local flags, which will only run

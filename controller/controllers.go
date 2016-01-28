@@ -385,14 +385,20 @@ func (rc *RoperController) DiscoverAllKnown() error {
 
 // Discover will create a repo at a path, and walk it, adding packages that it finds.
 func (rc *RoperController) Discover(name, path string) error {
+	fi, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("unable to discover repo at path %s: %s", path, err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("specified path is not a directory: %s", path)
+	}
+	if name == "" {
+		return fmt.Errorf("provided blank name for repo")
+	}
 	log.WithFields(log.Fields{
 		"name": name,
 		"path": path,
 	}).Info("Discovering repo")
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return fmt.Errorf("unable to discover repo at path %s: %s", path, err)
-	}
 	repo := &model.Repo{Name: name, AbsPath: path, Packages: make(map[string]*model.Package)}
 	// walk all the files under the parent
 	filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
