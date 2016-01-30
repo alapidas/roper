@@ -46,6 +46,11 @@ Run the main roper server, which will start a web server to serve
 your repos and monitor them for changes.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		/*
+		Some notes:
+			- The web server and monitoring routines are given an error chan below.  It is expected that if the given
+			routines put something on this channel, something has gone wrong and they should return
+		 */
 		wg := &sync.WaitGroup{}
 		shutdownChan := make(chan struct{})
 		// TODO: Make this buffered and handle multiple errors coming in on it.  Only handles one error, then exits now.

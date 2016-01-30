@@ -18,6 +18,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -29,6 +30,7 @@ import (
 var (
 	cfgFile string
 	dbPath  string
+	crPath  string
 	rc      *controller.RoperController
 )
 
@@ -82,11 +84,14 @@ func init() {
 	// determine default DB path
 	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		panic("unable to get path of roper executable")
+		log.WithField("error", err).Fatal("unable to get path of roper executable")
 	}
 	defaultDbPath := filepath.Join(dir, "roper.db")
-
 	RootCmd.PersistentFlags().StringVar(&dbPath, "dbpath", defaultDbPath, "path to the roper database")
+
+	// determine path to createrepo executable
+	defaultCrPath, _ := exec.LookPath("createrepo")
+	RootCmd.PersistentFlags().StringVar(&crPath, "createrepo_path", defaultCrPath, "path to the 'createrepo' executable")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

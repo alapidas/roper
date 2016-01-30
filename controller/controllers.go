@@ -67,13 +67,14 @@ func (rc *RoperController) Close() error {
 }
 
 func (rc *RoperController) runCreaterepo(repoName string) error {
+	// TODO: Need a mutex around the DB, then when it's done, need to re-discover
 	return fmt.Errorf("not yet implemented")
 }
 
 // scanForNewFields will scan all known repos for new files, and return the names of any repos
 // that are otu of sync.  This does NOT check to see that the file is the same, just that a file
 // exists.
-func (rc *RoperController) scanForNewFiles() ([]string, error) {
+func (rc *RoperController) scanForNewFiles() ([]*model.Repo, error) {
 
 	ErrNewFileFound := errors.New("new file found")
 
@@ -81,7 +82,7 @@ func (rc *RoperController) scanForNewFiles() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get repos: %s", err)
 	}
-	outOfSyncRepos := make([]string, 0, len(repos))
+	outOfSyncRepos := make([]*model.Repo, 0, len(repos))
 	for _, repo := range repos {
 		// make a copy of package relpaths for tracking
 		pkgsInRepo := make(map[string]struct{}, len(repo.Packages))
@@ -113,7 +114,7 @@ func (rc *RoperController) scanForNewFiles() ([]string, error) {
 			log.WithFields(log.Fields{
 				"repo": repo.Name,
 			}).Warn("repo is out of sync with db (probably new files on disk)")
-			outOfSyncRepos = append(outOfSyncRepos, repo.Name)
+			outOfSyncRepos = append(outOfSyncRepos, repo)
 		} else if err != nil {
 			return nil, fmt.Errorf("error scanning for new files on repo %s: %s", repo.Name, err)
 		} else if len(pkgsInRepo) > 0 {
@@ -121,13 +122,12 @@ func (rc *RoperController) scanForNewFiles() ([]string, error) {
 			log.WithFields(log.Fields{
 				"packages": pkgsInRepo,
 			}).Warn("repo is out of sync with db (db has files not found on disk)")
-			outOfSyncRepos = append(outOfSyncRepos, repo.Name)
+			outOfSyncRepos = append(outOfSyncRepos, repo)
 		}
 	}
 	return outOfSyncRepos, nil
 }
 
-// TODO: There are issues with concurrency in here  - I can't keep the passed in repos, I need to re-get them every time
 // TODO: Spaghetti if/else whomp whomp fix this
 func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan error) {
 	// Start watchers for all the repos we know about.  Start a routine for each, and make sure they
@@ -164,16 +164,44 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 				return
 			}
 			if len(changedRepos) > 0 {
+				// TODO: Don't shutdown and restart all watchers, just the affected ones
 				close(watcherShutdownChan)
 				watcherWg.Wait()
 				watcherShutdownChan = make(chan struct{})
-				// THEN
-				if err = rc.DiscoverAllKnown(); err != nil {
-					log.WithField("error", err).Error("error restarting watchers")
-					errChan <- err
+				// Re-run discovery on affected repos
+				discoverWg := sync.WaitGroup{}
+				discoverErrChan := make(chan error, len(changedRepos))
+				for _, repo := range changedRepos {
+					go func() {
+						discoverWg.Add(1)
+						defer discoverWg.Done()
+						if err = rc.Discover(repo.Name, repo.AbsPath); err != nil {
+							log.WithFields(log.Fields{
+								"error": err,
+								"repo": repo.Name,
+							}).Error("error running discovery after detected change")
+							discoverErrChan <- err
+						}
+					}()
+				}
+				discoverWg.Wait()
+				close(discoverErrChan)
+				log.Info("Repo discovery finished")
+
+				discoveryErrs := []error{}
+				// Discovery errors mean bail out
+				if len(discoveryErrs) > 0 {
+					log.Error("Errors found while running discovery, returning")
+					for {
+						err, good := <- discoverErrChan
+						if !good {
+							break
+						}
+						discoveryErrs = append(discoveryErrs, err)
+					}
+					errChan <- fmt.Errorf("Errors found during discovery: %s", discoveryErrs)
 					return
 				}
-				// THEN
 				repos, err := rc.GetRepos()
 				if err != nil {
 					log.WithField("error", err).Error("error restarting watchers")
