@@ -159,6 +159,10 @@ func (rc *RoperController) scanForNewFiles() ([]*model.Repo, error) {
 			if err != nil {
 				return err
 			}
+			// skip dirs and non-RPMs
+			if info.IsDir() || filepath.Ext(filePath) != ".rpm" {
+				return nil
+			}
 			// get the relpath
 			relpath, err := filepath.Rel(repo.AbsPath, filePath)
 			if err != nil {
@@ -212,10 +216,10 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 
 	watcherWg := &sync.WaitGroup{}
 	doStartWatchers := func(repos []*model.Repo) {
+		watcherWg.Add(1)
 		defer watcherWg.Done()
 		rc.startWatchers(watcherShutdownChan, watcherErrChan, repos)
 	}
-	watcherWg.Add(1)
 	go doStartWatchers(repos)
 
 	for {
@@ -236,7 +240,8 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 				// Re-run discovery on affected repos
 				discoverWg := sync.WaitGroup{}
 				discoverErrChan := make(chan error, len(changedRepos))
-				for _, repo := range changedRepos {
+				for _, rrepo := range changedRepos {
+					repo := *rrepo
 					go func() {
 						discoverWg.Add(1)
 						defer discoverWg.Done()
@@ -530,8 +535,8 @@ func (rc *RoperController) Discover(name, path string) error {
 		if err != nil {
 			return err
 		}
-		// only doing files
-		if info.IsDir() {
+		// only doing files and RPMs
+		if info.IsDir() || filepath.Ext(filePath) != ".rpm" {
 			return nil
 		}
 		// get the relpath

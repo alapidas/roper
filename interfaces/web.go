@@ -28,7 +28,7 @@ func StartWeb(shutdownChan chan struct{}, errChan chan error, dirs DirConfigs) {
 
 	log.WithFields(log.Fields{
 		"prefixes": prefixes,
-	}).Infof("Starting web server for repos at prefixes")
+	}).Infof("Starting web server for repos at prefixes on port 3000")
 
 	webDoneChan := make(chan error)
 	go func() {
