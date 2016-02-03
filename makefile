@@ -1,6 +1,7 @@
 IMAGE_NAME := roper-build
 GO_PREFIX  := godep
-
+MKFILE_DIR  = $(shell pwd)
+ROPER_OPTS  =
 
 # Dockerized targets
 docker_image:
@@ -18,18 +19,18 @@ docker_run: docker_image
 
 # Regular targets
 test:
-	$(GO_PREFIX) go test ./...
+	$(GO_PREFIX) go test -race ./...
 
 build:
-	$(GO_PREFIX) go build -o roper main.go
+	$(GO_PREFIX) go build -race -o roper main.go
 
 run: build
-	./roper serve
+	./roper $(ROPER_OPTS) serve
 
 run_bootstrapped: build
-	./roper repo add /Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel TestEpel
-	./roper repo add /Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7 Docker
-	./roper serve
+	./roper $(ROPER_OPTS) repo add /Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/epel TestEpel
+	./roper $(ROPER_OPTS) repo add /Users/alapidas/goWorkspace/src/github.com/alapidas/roper/hack/test_repos/docker/7 Docker
+	./roper $(ROPER_OPTS) serve
 
 # Godep targets
 godep_save:

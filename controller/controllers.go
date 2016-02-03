@@ -10,7 +10,9 @@ import (
 	"github.com/boltdb/bolt"
 	"gopkg.in/fsnotify.v1"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,6 +27,9 @@ var (
 
 type RoperController struct {
 	db *bolt.DB
+	crPath string
+	lock *sync.Mutex
+	locks *repoLocker
 }
 
 type RepoWatcher struct {
@@ -33,15 +38,58 @@ type RepoWatcher struct {
 	name    string
 }
 
+type repoLocker struct {
+	sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+// Create the lock if it doesn't exist
+func (rl *repoLocker) lock(name string) {
+	rl.Lock()
+	defer rl.Unlock()
+	lock, ok := rl.locks[name]
+	if !ok {
+		lock = &sync.Mutex{}
+		rl.locks[name] = lock
+	}
+	lock.Lock()
+}
+
+// Error out if no existing lock by that name
+func (rl *repoLocker) unlock(name string) error {
+	rl.Lock()
+	defer rl.Unlock()
+	lock, ok := rl.locks[name]
+	if !ok {
+		return fmt.Errorf("no lock exists with identifier %s", name)
+	}
+	lock.Unlock()
+	delete(rl.locks, name)
+	return nil
+}
+
 // Initialize all the things!
-func Init(dbPath string) (*RoperController, error) {
+func Init(dbPath, crPath string) (*RoperController, error) {
 	rc := &RoperController{}
+	rc.locks = &repoLocker{locks: map[string]*sync.Mutex{}}
+
+	// if crPath is passed in, assume it's correct.  Jesus take the wheel.
+	if crPath == "" {
+		var err error
+		crPath, err = exec.LookPath("createrepo")
+		if err != nil {
+			return nil, fmt.Errorf("unable to determine createrepo path: %s", err)
+		}
+	}
+	rc.crPath = crPath
+
 	// Open the database
 	db, err := bolt.Open(dbPath, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("unable to open database %s: %s", dbPath, err)
 	}
 	rc.db = db
+
 	// Create the buckets
 	err = rc.db.Update(func(tx *bolt.Tx) error {
 		for _, bucketName := range buckets {
@@ -54,7 +102,7 @@ func Init(dbPath string) (*RoperController, error) {
 		}
 		return nil
 	})
-	return rc, err // 'rc' will be an object here not nil, check err!
+	return rc, err
 }
 
 // Close will do things at the end of the program
@@ -67,8 +115,25 @@ func (rc *RoperController) Close() error {
 }
 
 func (rc *RoperController) runCreaterepo(repoName string) error {
-	// TODO: Need a mutex around the DB, then when it's done, need to re-discover
-	return fmt.Errorf("not yet implemented")
+	rc.locks.lock(repoName)
+	defer rc.locks.unlock(repoName)
+	repo, err := rc.GetRepo(repoName)
+	if err != nil {
+		return err
+	}
+	cmd := strings.Fields(rc.crPath)
+	argz := []string{}
+	if len(cmd) > 1 {
+		argz = append(argz, cmd[1:]...)
+	}
+	argz = append(argz, repo.AbsPath)
+	cmdp := exec.Command(cmd[0], argz...)
+	log.WithField("repo", repo.Name).Info("Running createrepo")
+	cout, err := cmdp.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Error running createrepo: %s: %s", err, string(cout))
+	}
+	return nil
 }
 
 // scanForNewFields will scan all known repos for new files, and return the names of any repos
@@ -147,10 +212,10 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 
 	watcherWg := &sync.WaitGroup{}
 	doStartWatchers := func(repos []*model.Repo) {
-		watcherWg.Add(1)
 		defer watcherWg.Done()
 		rc.startWatchers(watcherShutdownChan, watcherErrChan, repos)
 	}
+	watcherWg.Add(1)
 	go doStartWatchers(repos)
 
 	for {
@@ -232,9 +297,11 @@ func (rc *RoperController) StartMonitor(shutdownChan chan struct{}, errChan chan
 func (rc *RoperController) startWatchers(shutdownChan chan struct{}, errChan chan error, repos []*model.Repo) {
 
 	wg := &sync.WaitGroup{}
-	for _, repo := range repos {
+	for _, rrepo := range repos {
+		// make a local copy
+		repo := rrepo
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 			watcher, err := fsnotify.NewWatcher()
 			defer watcher.Close()
@@ -284,6 +351,9 @@ func (rc *RoperController) startWatchers(shutdownChan chan struct{}, errChan cha
 									if rc.PersistRepo(repo); err != nil {
 										log.WithField("error", err).Error("Unable to persist repo")
 									}
+									if err = rc.runCreaterepo(repo.Name); err != nil {
+										log.WithField("error", err).Errorf("Error running createrepo against repo")
+									}
 								}
 							}
 						}
@@ -305,6 +375,8 @@ func (rc *RoperController) startWatchers(shutdownChan chan struct{}, errChan cha
 }
 
 func (rc *RoperController) RemoveRepo(name string) error {
+	rc.locks.lock(name)
+	defer rc.locks.unlock(name)
 	err := rc.db.Update(func(tx *bolt.Tx) error {
 		repo, err := rc.getRepo(tx, name)
 		if err != nil {
@@ -335,6 +407,8 @@ func (rc *RoperController) PersistRepo(repo *model.Repo) error {
 		ppackages = append(ppackages, &model.PersistablePackage{*pkg})
 	}
 	// open xn
+	rc.locks.lock(repo.Name)
+	defer rc.locks.unlock(repo.Name)
 	err := rc.db.Update(func(tx *bolt.Tx) error {
 		// TODO: this delete code can be consolidated into the internal function call
 		pb := tx.Bucket([]byte(pkg_bucket))
@@ -474,6 +548,9 @@ func (rc *RoperController) Discover(name, path string) error {
 	// TODO: Handle persisting the packages separately?
 	if err = rc.PersistRepo(repo); err != nil {
 		return fmt.Errorf("unable to persist repo %s: %s", repo.Name, err)
+	}
+	if err = rc.runCreaterepo(repo.Name); err != nil {
+		return fmt.Errorf("Error discovering repo: %s", err)
 	}
 	log.WithFields(log.Fields{
 		"name": name,

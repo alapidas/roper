@@ -40,7 +40,7 @@ func (suite *TheSuite) SetUpTest(c *C) {
 	tempf, err := ioutil.TempFile(tmpdir, "")
 	c.Assert(err, IsNil)
 	suite.dbpath = tempf.Name()
-	rc, err := Init(suite.dbpath)
+	rc, err := Init(suite.dbpath, "nothing")
 	c.Assert(err, IsNil)
 	suite.rc = rc
 	suite.repoPath = c.MkDir()

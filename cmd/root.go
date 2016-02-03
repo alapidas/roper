@@ -46,7 +46,7 @@ against them (if desired) when changes are detected.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// create controller
 		var err error
-		rc, err = controller.Init(dbPath)
+		rc, err = controller.Init(dbPath, crPath)
 		if err != nil {
 			log.Fatalf("Unable to initialize application: %s", err)
 		}
